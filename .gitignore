@@ -1,0 +1,4 @@
+# Build files and binaries
+cmake-build-debug
+# IDE-specific settings and files
+.idea
