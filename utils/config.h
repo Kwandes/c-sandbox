@@ -1,0 +1,4 @@
+#ifndef UTILS_CONFIG_H
+#define UTILS_CONFIG_H
+
+#endif //UTILS_CONFIG_H
