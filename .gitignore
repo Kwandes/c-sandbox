@@ -2,3 +2,4 @@
 cmake-build-debug
 # IDE-specific settings and files
 .idea
+.vscode
