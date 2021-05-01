@@ -1,241 +1,212 @@
-#define DECODE_NEC
-//#define DECODE_DENON
-#include <IRremote.h>
-#include "irCodes.h"
 
-#include <stdio.h>
-//#include "readFromStruct.h"
-#include "definitions.h"
-#include "instruction.h"
-#include "write.h"
-#include "writeToTrain.h"
+#define DCC_PIN 4  // Arduino pin for DCC out
+#define soundpin 3 // sense for sound
+#define dirpin 2   // sense for direction
 
-#define ENGINE_NUMBER 11
-//#define COMMAND SPEED8
-volatile char COMMAND = SPEED8;
+//Timer frequency is 2MHz for ( /8 prescale from 16MHz )
+#define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
+#define TIMER_LONG 0x1B  // 116usec pulse length 27 255-27 =228
 
-#define ACTIVE_PIN_A 4
-#define ACTIVE_PIN_B 0
-#define ACTIVE_PIN_C 0
+unsigned char last_timer = TIMER_SHORT; // store last timer value
 
-//volatile char COMMAND = 0x69;
+unsigned char flag = 0; // used for short or long pulse
+// Question: bool is erroring | what does pulse up and down mean
+bool second_isr = false; // pulse up or down
 
-const int BUTTON_PIN = 2;     // the number of the pushbutton pin
-const int IR_RECEIVER_PIN = 3; // the number of the IR receiver pin
-const int LED_PIN = 13;       // the number of the LED pin
+#define PREAMBLE 0  // definitions for state machine
+#define SEPERATOR 1 // definitions for state machine
+#define SENDBYTE 2  // definitions for state machine
 
-// If variable changes, put `volatile` in its decleration
+unsigned char state = PREAMBLE;
+unsigned char preamble_count = 16;
+unsigned char outbyte = 0;
+unsigned char cbit = 0x80;
 
-void testCodes(int codeHex);
-void readInstructionData(struct Instruction instruction);
+unsigned char locoSpeed = 0; // variables for throttle
+unsigned char dir = 1;       //forward
+unsigned char locoAdr = 40;  // this is the (fixed) address of the loco
+unsigned char sound = 0;
 
-
-struct Instruction blankInstruction =
+struct Message // buffer for command
 {
-        blankPreamble,      // preamble part 1
-        blankPreamble,      // preamble part 2
-        blankSeparator,     // -- Separating bit --
-        blankEngineNumber,  // Engine Number
-        blankSeparator,     // -- Separating bit --
-        blankCommand,       // Command
-        blankSeparator,     // -- Separating bit --
-        blankInstruction.command ^ blankInstruction.engineNumber,  // Checksum
-        blankEndOfMessage   // --- End of message bit ---
+   unsigned char data[7];
+   unsigned char len;
 };
 
-struct Instruction testInstruction =
-{
-        PREAMBLE,           // preamble part 1
-        PREAMBLE,           // preamble part 2
-        SEPARATOR,          // -- Separating bit --
-        ENGINE_NUMBER,      // Engine Number
-        SEPARATOR,          // -- Separating bit --
-        COMMAND,            // Command
-        SEPARATOR,          // -- Separating bit --
-        testInstruction.command ^ testInstruction.engineNumber,  // Checksum
-        END_OF_MESSAGE        // --- End of message bit ---
+#define MAXMSG 2
+
+struct Message msg[MAXMSG] =
+    {
+        {{0xFF, 0, 0xFF, 0, 0, 0, 0}, 3}, // idle msg
+        {{locoAdr, 0, 0, 0, 0, 0, 0}, 3}  // locoMsg with 128 speed steps
 };
 
-void setup()
-{
-  // Enable a pin as output for the train
-  pinMode(ACTIVE_PIN_A,OUTPUT);
-  // initialize the LED pin as an output:
-  pinMode(LED_PIN, OUTPUT);
-  // initialize the pushbutton pin as an input:
-  pinMode(BUTTON_PIN, INPUT);
-  Serial.begin(9600);
-  IrReceiver.begin(IR_RECEIVER_PIN, ENABLE_LED_FEEDBACK);
+int msgIndex = 0;
+int byteIndex = 0;
 
-  // Attach an interrupt to the ISR vector
-  attachInterrupt(0, pin_ISR, RISING);
-  attachInterrupt(1, pin_IR_ISR, FALLING);
+//Setup Timer2.
+//Configures the 8-Bit Timer2 to generate an interrupt at the specified frequency.
+//Returns the time load value which must be loaded into TCNT2 inside your ISR routine.
+
+void SetupTimer2()
+{
+   //Timer2 Settings: Timer Prescaler /8, mode 0
+   //Timer clock = 16MHz/8 = 2MHz oder 0,5usec
+   //
+   TCCR2A = 0; //page 203 - 206 ATmega328/P
+
+   TCCR2B = 2; //Page 206
+
+   /*         bit 2     bit 1     bit0
+            0         0         0       Timer/Counter stopped 
+            0         0         1       No Prescaling
+            0         1         0       Prescaling by 8
+            0         0         0       Prescaling by 32
+            1         0         0       Prescaling by 64
+            1         0         1       Prescaling by 128
+            1         1         0       Prescaling by 256
+            1         1         1       Prescaling by 1024
+*/
+   TIMSK2 = 1 << TOIE2; //Timer2 Overflow Interrupt Enable - page 211 ATmega328/P
+   TCNT2 = TIMER_SHORT; //load the timer for its first cycle
 }
 
-void loop()
+ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 {
-  //delay(1000);
-    //Serial.println("\n--------------- test output ---------------\n");
-    //readInstructionData(blankInstruction);
-    //writeToTrain(ACTIVE_PIN_A, blankInstruction);
-    //delay(1000);
-    //Serial.println("\n--------------- test output ---------------\n");
-    //readInstructionData(testInstruction);
-    //delay(100);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    delayMicroseconds(1);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
-    writeToTrain(ACTIVE_PIN_A, testInstruction);
+   //Capture the current timer value TCTN2. This is how much error we have
+   //due to interrupt latency and the work in this function
+   //Reload the timer and correct for latency.
+   unsigned char latency;
+   Serial.println("ISR got called");
+   if (second_isr)
+   { // for every second interupt just toggle signal
+      digitalWrite(DCC_PIN, 1);
+      second_isr = false;
+      latency = TCNT2; // set timer to last value
+      TCNT2 = latency + last_timer;
+   }
+   else
+   { // != every second interrupt, advance bit or state
+      digitalWrite(DCC_PIN, 0);
+      second_isr = true;
+      switch (state)
+      {
+      case PREAMBLE:
+         flag = 1; // short pulse
+         preamble_count--;
+         if (preamble_count == 0)
+         {
+            state = SEPERATOR; // advance to next state
+            msgIndex++;        // get next message
+            if (msgIndex >= MAXMSG)
+            {
+               msgIndex = 0;
+            }
+            byteIndex = 0; //start msg with byte 0
+         }
+         break;
+      case SEPERATOR:
+         flag = 0;         // long pulse and then advance to next state
+         state = SENDBYTE; // goto next byte ...
+         outbyte = msg[msgIndex].data[byteIndex];
+         cbit = 0x80; // send this bit next time first
+         break;
+      case SENDBYTE:
+         if ((outbyte & cbit) != 0)
+         {
+            flag = 1; // send short pulse
+         }
+         else
+         {
+            flag = 0; // send long pulse
+         }
+         cbit = cbit >> 1;
+         if (cbit == 0)
+         { // last bit sent
+            //Serial.print(" ");
+            byteIndex++;
+            if (byteIndex >= msg[msgIndex].len) // is there a next byte?
+            {                                   // this was already the XOR byte then advance to preamble
+               state = PREAMBLE;
+               preamble_count = 16;
+               //Serial.println();
+            }
+            else
+            { // send separtor and advance to next byte
+               state = SEPERATOR;
+            }
+         }
+         break;
+      }
+
+      if (flag)
+      { // data = 1 short pulse
+         latency = TCNT2;
+         TCNT2 = latency + TIMER_SHORT;
+         last_timer = TIMER_SHORT;
+         //Serial.print('1');
+      }
+      else
+      { // data = 0 long pulse
+         latency = TCNT2;
+         TCNT2 = latency + TIMER_LONG;
+         last_timer = TIMER_LONG;
+         // Serial.print('0');
+      }
+   }
 }
 
-void pin_IR_ISR()
+void setup(void)
 {
-  // IR stuff
-  if (IrReceiver.decode())
-  {
-    //Serial.println(IrReceiver.decodedIRData.command, HEX);
-    testCodes(IrReceiver.decodedIRData.command);
-    IrReceiver.resume();
-  }
+   Serial.begin(115200);
+   pinMode(dirpin, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
+   pinMode(soundpin, INPUT_PULLUP); // pin 3
+   pinMode(DCC_PIN, OUTPUT);        // pin 4 this is for the DCC Signal
+
+   assemble_dcc_msg();
+   SetupTimer2(); // Start the timer
 }
 
-void pin_ISR()
+void loop(void)
 {
-  digitalWrite(LED_PIN, HIGH);
-  Serial.println("Button got pressed");
+   Serial.println("Loop time");
+   delay(200);
+   assemble_dcc_msg();
 }
 
-void testCodes(int codeHex)
+void assemble_dcc_msg()
 {
-  switch (codeHex)
-  {
-  case IR_POWER:
-    Serial.println("IR_POWER");
-    break;
+   int i, j;
+   unsigned char data, xdata;
 
-  case IR_VOL_PLUS:
-    Serial.println("IR_VOL_PLUS");
-    break;
+   i = digitalRead(dirpin);
+   j = digitalRead(soundpin);
 
-  case IR_VOL_MINUS:
-    Serial.println("IR_VOL_MINUS");
-    break;
+   if (sound == 1)
+   {
+      data = 128;
+      sound = 0;
+   }
+   else
+   {
+      if (j == HIGH)
+      {
+         if (i == HIGH)
+            data = 0x66;
+         else
+            data = 0x46;
+      }
+      else
+      {
+         data = 129;
+         sound = 1;
+      }
+   }
 
-  case IR_FUNC_STOP:
-    Serial.println("IR_FUNC_STOP");
-    break;
+   xdata = msg[1].data[0] ^ data;
+   noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
+   msg[1].data[1] = data;
+   msg[1].data[2] = xdata;
 
-  case IR_PREVIOUS:
-    Serial.println("IR_PREVIOUS");
-    break;
-
-  case IR_PLAY_PAUSE:
-    Serial.println("IR_PLAY_PAUSE");
-    break;
-
-  case IR_NEXT:
-    Serial.println("IR_NEXT");
-    break;
-
-  case IR_DOWN:
-    Serial.println("IR_DOWN");
-    break;
-
-  case IR_UP:
-    Serial.println("IR_UP");
-    break;
-
-  case IR_EQ:
-    Serial.println("IR_EQ");
-    testInstruction.command = SPEED12;
-    break;
-
-  case IR_ZERO:
-    Serial.println("IR_ZERO");
-    testInstruction.command = HARDSTOP;
-    break;
-
-  case IR_ONE:
-    Serial.println("IR_ONE");
-    testInstruction.command = SPEED1;
-    break;
-
-  case IR_TWO:
-    Serial.println("IR_TWO");
-    testInstruction.command = SPEED2;
-    break;
-
-  case IR_THREE:
-    Serial.println("IR_THREE");
-    testInstruction.command = SPEED3;
-    break;
-
-  case IR_FOUR:
-    Serial.println("IR_FOUR");
-    testInstruction.command = SPEED4;
-    break;
-
-  case IR_FIVE:
-    Serial.println("IR_FIVE");
-    testInstruction.command = SPEED5;
-    break;
-
-  case IR_SIX:
-    Serial.println("IR_SIX");
-    testInstruction.command = SPEED6;
-    break;
-
-  case IR_SEVEN:
-    Serial.println("IR_SEVEN");
-    testInstruction.command = SPEED7;
-    break;
-
-  case IR_EIGHT:
-    Serial.println("IR_EIGHT");
-    testInstruction.command = SPEED8;
-    break;
-
-  case IR_NINE:
-    Serial.println("IR_NINE");
-    testInstruction.command = SPEED9;
-    break;
-
-  default:
-    Serial.print("Fake button aka wrong value: 0x");
-    Serial.println(codeHex);
-    break;
-  }
-}
-
-
-// TODO - Find out how to use Serial outside of main, for now, it lives here
-void readInstructionData(struct Instruction instruction)
-{
-    char* preambleFixed = "whoops";
-    int total = (instruction.preamble[0] + instruction.preamble[1]);
-    if (total == 510)
-    {
-        preambleFixed = "0xFFFF";
-    }
-    if (total == 0)
-    {
-        preambleFixed = "0x0000";
-    }
-
-    noInterrupts();
-    Serial.print("The preamble is: ");
-    Serial.print(preambleFixed);
-    Serial.print(" The engine number is: ");
-    Serial.print(instruction.engineNumber);
-    Serial.print(" The command is: ");
-    Serial.print(instruction.command);
-    Serial.print(" The checksum is: ");
-    Serial.print(instruction.checksum); 
-    Serial.println();
-    interrupts();
+   interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
 }
