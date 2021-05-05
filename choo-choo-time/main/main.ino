@@ -1,24 +1,24 @@
 
 #define DCC_PIN 4  // Arduino pin for DCC out
-#define soundpin 3 // sense for sound
-#define dirpin 2   // sense for direction
+#define SOUND_PIN 3 // sense for sound
+#define DIR_PIN 2   // sense for direction
 
 //Timer frequency is 2MHz for ( /8 prescale from 16MHz )
 #define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
 #define TIMER_LONG 0x1B  // 116usec pulse length 27 255-27 =228
 
-unsigned char last_timer = TIMER_SHORT; // store last timer value
+unsigned char lastTimer = TIMER_SHORT; // store last timer value
 
 unsigned char flag = 0; // used for short or long pulse
 // Question: bool is erroring | what does pulse up and down mean
-bool second_isr = false; // pulse up or down
+bool secondInterrupt = false; // pulse up or down
 
 #define PREAMBLE 0  // definitions for state machine
 #define SEPERATOR 1 // definitions for state machine
 #define SENDBYTE 2  // definitions for state machine
 
 unsigned char state = PREAMBLE;
-unsigned char preamble_count = 16;
+unsigned char preambleCount = 16;
 unsigned char outbyte = 0;
 unsigned char cbit = 0x80;
 
@@ -78,23 +78,23 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
    //Reload the timer and correct for latency.
    unsigned char latency;
    Serial.println("ISR got called");
-   if (second_isr)
+   if (secondInterrupt)
    { // for every second interupt just toggle signal
       digitalWrite(DCC_PIN, 1);
-      second_isr = false;
+      secondInterrupt = false;
       latency = TCNT2; // set timer to last value
-      TCNT2 = latency + last_timer;
+      TCNT2 = latency + lastTimer;
    }
    else
    { // != every second interrupt, advance bit or state
       digitalWrite(DCC_PIN, 0);
-      second_isr = true;
+      secondInterrupt = true;
       switch (state)
       {
       case PREAMBLE:
          flag = 1; // short pulse
-         preamble_count--;
-         if (preamble_count == 0)
+         preambleCount--;
+         if (preambleCount == 0)
          {
             state = SEPERATOR; // advance to next state
             msgIndex++;        // get next message
@@ -128,7 +128,7 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
             if (byteIndex >= msg[msgIndex].len) // is there a next byte?
             {                                   // this was already the XOR byte then advance to preamble
                state = PREAMBLE;
-               preamble_count = 16;
+               preambleCount = 16;
                //Serial.println();
             }
             else
@@ -143,14 +143,14 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
       { // data = 1 short pulse
          latency = TCNT2;
          TCNT2 = latency + TIMER_SHORT;
-         last_timer = TIMER_SHORT;
+         lastTimer = TIMER_SHORT;
          //Serial.print('1');
       }
       else
       { // data = 0 long pulse
          latency = TCNT2;
          TCNT2 = latency + TIMER_LONG;
-         last_timer = TIMER_LONG;
+         lastTimer = TIMER_LONG;
          // Serial.print('0');
       }
    }
@@ -159,8 +159,8 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 void setup(void)
 {
    Serial.begin(115200);
-   pinMode(dirpin, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
-   pinMode(soundpin, INPUT_PULLUP); // pin 3
+   pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
+   pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
    pinMode(DCC_PIN, OUTPUT);        // pin 4 this is for the DCC Signal
 
    assemble_dcc_msg();
@@ -179,8 +179,8 @@ void assemble_dcc_msg()
    int i, j;
    unsigned char data, xdata;
 
-   i = digitalRead(dirpin);
-   j = digitalRead(soundpin);
+   i = digitalRead(DIR_PIN);
+   j = digitalRead(SOUND_PIN);
 
    if (sound == 1)
    {
