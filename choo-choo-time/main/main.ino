@@ -1,5 +1,5 @@
 
-#define DCC_PIN 4  // Arduino pin for DCC out
+#define DCC_PIN 4   // Arduino pin for DCC out
 #define SOUND_PIN 3 // sense for sound
 #define DIR_PIN 2   // sense for direction
 
@@ -48,7 +48,7 @@ int byteIndex = 0;
 //Configures the 8-Bit Timer2 to generate an interrupt at the specified frequency.
 //Returns the time load value which must be loaded into TCNT2 inside your ISR routine.
 
-void SetupTimer2()
+void setupTimer2()
 {
    //Timer2 Settings: Timer Prescaler /8, mode 0
    //Timer clock = 16MHz/8 = 2MHz oder 0,5usec
@@ -161,20 +161,20 @@ void setup(void)
    Serial.begin(115200);
    pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
    pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
-   pinMode(DCC_PIN, OUTPUT);        // pin 4 this is for the DCC Signal
+   pinMode(DCC_PIN, OUTPUT);         // pin 4 this is for the DCC Signal
 
-   assemble_dcc_msg();
-   SetupTimer2(); // Start the timer
+   assembleDccMsg();
+   setupTimer2(); // Start the timer
 }
 
 void loop(void)
 {
    Serial.println("Loop time");
    delay(200);
-   assemble_dcc_msg();
+   assembleDccMsg();
 }
 
-void assemble_dcc_msg()
+void assembleDccMsg()
 {
    int i, j;
    unsigned char data, xdata;
