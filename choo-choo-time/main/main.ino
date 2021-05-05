@@ -158,7 +158,7 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 
 void setup(void)
 {
-   Serial.begin(115200);
+   Serial.begin(9600);
    pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
    pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
    pinMode(DCC_PIN, OUTPUT);         // pin 4 this is for the DCC Signal
