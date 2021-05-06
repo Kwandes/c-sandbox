@@ -2,8 +2,9 @@
 #define DCC_PIN 4   // Arduino pin for DCC out
 #define SOUND_PIN 3 // sense for sound
 //#define DIR_PIN 2   // sense for direction
-const int BUTTON_PIN = 2; // the number of the pushbutton pin
-const int LED_PIN = 13;   // the number of the LED pin
+const int BUTTON_PIN = 2;         // the number of the pushbutton pin
+const int LED_PIN = 13;           // the number of the LED pin
+const int POTENTIOMETER_PIN = A5; // the number of the LED pin
 
 //Timer frequency is 2MHz for ( /8 prescale from 16MHz )
 #define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
@@ -164,9 +165,11 @@ void setup(void)
    pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
    pinMode(DCC_PIN, OUTPUT);         // pin 4 this is for the DCC Signal
 
-   // initialize the pushbutton pin as an input:
+   // initialize the pushbutton pin as an input
    pinMode(BUTTON_PIN, INPUT);
-   // initialize the LED pin as an output:
+   // initialize the potentiometer pin as an input. Optional
+   pinMode(POTENTIOMETER_PIN, INPUT);
+   // initialize the LED pin as an output
    pinMode(LED_PIN, OUTPUT);
 
    // Attach an interrupt to the ISR vector
@@ -178,7 +181,7 @@ void setup(void)
 
 void loop(void)
 {
-   //Serial.println("Loop time");
+   Serial.println("Loop time");
    delay(200);
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
@@ -186,6 +189,17 @@ void loop(void)
 
 void assembleDccMsg()
 {
+
+   int speedValue = analogRead(POTENTIOMETER_PIN);
+   Serial.println(speedValue);
+   // The potentiometer returns a value between 0 and 1023
+   // the value is mapped to a high of 1022 to account for extra resistance in the circuit
+   speedValue = map(speedValue, 0, 1022, 0, 16);
+   //speedValue = map(speedValue, 0, 16, 1, 127);
+
+   Serial.print("Speed value: ");
+   Serial.println(speedValue);
+
    int i, j;
    unsigned char data, xdata;
 
@@ -218,6 +232,6 @@ void assembleDccMsg()
    msg[1].data[1] = data;
    msg[1].data[2] = xdata;
 
-   //Serial.println(data);
+   Serial.println(data);
    interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
 }
