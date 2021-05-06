@@ -1,3 +1,4 @@
+#include "messageTypes.h"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -23,6 +24,8 @@ unsigned char outbyte = 0;
 unsigned char cbit = 0x80;
 
 // Message / train control related variables
+unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed commands
+
 volatile unsigned char locoAddresses[] = {9, 11}; // this is the (fixed) address of the loco
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0; // used to determine the direction of the train movement
@@ -181,25 +184,49 @@ void loop(void)
 void assembleDccMsg()
 {
 
-   int speedValue = analogRead(POTENTIOMETER_PIN);
-   // The potentiometer returns a value between 0 and 1023
-   // the value is mapped to a high of 1022 to account for extra resistance in the circuit
-   // The train speeds are controlled with 16 values, from 0 to 15;
-   speedValue = map(speedValue, 0, 1022, 0, 15);
-
-   Serial.print("Speed value: ");
-   Serial.println(speedValue);
-
    unsigned char data, checksum;
-   // buttonState indicates direction. 1 is forwards, 0 is backwards
-   // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
-   if (buttonState == 1)
+
+   // Define data based on the type of the message that is supposed to be sent
+   switch (messageType)
    {
-      data = 96 + speedValue;
+   case COMMAND_TRAIN_SPEED:
+   {
+      int speedValue = analogRead(POTENTIOMETER_PIN);
+      // The potentiometer returns a value between 0 and 1023
+      // the value is mapped to a high of 1022 to account for extra resistance in the circuit
+      // The train speeds are controlled with 16 values, from 0 to 15;
+      speedValue = map(speedValue, 0, 1022, 0, 15);
+
+      Serial.print("Speed value: ");
+      Serial.println(speedValue);
+
+      // buttonState indicates direction. 1 is forwards, 0 is backwards
+      // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
+      if (buttonState == 1)
+      {
+         data = 96 + speedValue;
+      }
+      else
+      {
+         data = 64 + speedValue;
+      }
+      break;
    }
-   else
+   case COMMAND_TRAIN_EFFECT:
    {
-      data = 64 + speedValue;
+      Serial.println("Train effects have not been implemented yet");
+      break;
+   }
+   case COMMAND_SWITCH:
+   {
+      Serial.println("Switch commands have not been implemented yet");
+      break;
+   }
+   default:
+   {
+      Serial.println("The switch got ignored");
+      break;
+   }
    }
 
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
