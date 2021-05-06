@@ -89,6 +89,7 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
          cbit = 0x80; // send this bit next time first
          break;
       case SENDBYTE:
+         //Serial.println(outbyte);
          if ((outbyte & cbit) != 0)
          {
             flag = 1; // send short pulse
@@ -177,7 +178,7 @@ void setup(void)
 
 void loop(void)
 {
-   Serial.println("Loop time");
+   //Serial.println("Loop time");
    delay(200);
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
@@ -217,5 +218,6 @@ void assembleDccMsg()
    msg[1].data[1] = data;
    msg[1].data[2] = xdata;
 
+   //Serial.println(data);
    interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
 }
