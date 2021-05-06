@@ -1,10 +1,8 @@
 
-#define DCC_PIN 4   // Arduino pin for DCC out
-#define SOUND_PIN 3 // sense for sound
-//#define DIR_PIN 2   // sense for direction
-const int BUTTON_PIN = 2;         // the number of the pushbutton pin
-const int LED_PIN = 13;           // the number of the LED pin
-const int POTENTIOMETER_PIN = A5; // the number of the LED pin
+#define DCC_PIN 4            // Arduino pin for DCC out
+#define BUTTON_PIN 2         // the number of the pushbutton pin
+#define POTENTIOMETER_PIN A5 // the number of the Potentiometer input
+#define LED_PIN 13           // the number of the LED pin
 
 //Timer frequency is 2MHz for ( /8 prescale from 16MHz )
 #define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
@@ -161,18 +159,14 @@ void pin_ISR()
 void setup(void)
 {
    Serial.begin(9600);
-   //pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
-   pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
-   pinMode(DCC_PIN, OUTPUT);         // pin 4 this is for the DCC Signal
+   pinMode(DCC_PIN, OUTPUT); // pin 4 this is for the DCC Signal
 
    // initialize the pushbutton pin as an input
    pinMode(BUTTON_PIN, INPUT);
-   // initialize the potentiometer pin as an input. Optional
-   pinMode(POTENTIOMETER_PIN, INPUT);
    // initialize the LED pin as an output
    pinMode(LED_PIN, OUTPUT);
 
-   // Attach an interrupt to the ISR vector
+   // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
    assembleDccMsg();
@@ -205,12 +199,13 @@ void assembleDccMsg()
    if (buttonState == 1)
    {
       data = 96 + speedValue;
-   } else
+   }
+   else
    {
       data = 64 + speedValue;
    }
 
-   checksum =  msg[1].data[0] ^ data;
+   checksum = msg[1].data[0] ^ data;
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
    msg[1].data[1] = data;
    msg[1].data[2] = checksum;
