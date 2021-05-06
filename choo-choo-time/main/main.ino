@@ -9,6 +9,9 @@
 #define SEPERATOR 1 // definitions for ISR state machine
 #define SENDBYTE 2  // definitions for ISR state machine
 
+//Timer frequency is 2MHz for ( /8 prescale from 16MHz )
+#define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
+#define TIMER_LONG 0x1B  // 116usec pulse length 27 255-27 =228
 unsigned char lastTimer = TIMER_SHORT; // store last timer value
 
 unsigned char flag = 0; // used for short or long pulse in the ISR
@@ -20,11 +23,7 @@ unsigned char outbyte = 0;
 unsigned char cbit = 0x80;
 
 // Message / train control related variables
-unsigned char locoSpeed = 0; // variables for throttle
-unsigned char dir = 1;       //forward
-unsigned char locoAdr = 40;  // this is the (fixed) address of the loco
-unsigned char sound = 0;
-
+volatile unsigned char locoAdr = 9;  // this is the (fixed) address of the loco
 volatile int buttonState = 0; // used to determine the direction of the train movement
 
 struct Message // buffer for command
