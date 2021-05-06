@@ -23,10 +23,9 @@ unsigned char outbyte = 0;
 unsigned char cbit = 0x80;
 
 // Message / train control related variables
-unsigned const char locoAddresses[] = {9, 40};
-unsigned int currentLocoAddressIndex = 0;
-volatile unsigned char locoAdr = 9; // this is the (fixed) address of the loco
-volatile int buttonState = 0;       // used to determine the direction of the train movement
+volatile unsigned char locoAddresses[] = {9, 11}; // this is the (fixed) address of the loco
+volatile unsigned int locoAddressIndex = 0;
+volatile int buttonState = 0; // used to determine the direction of the train movement
 
 struct Message // buffer for command
 {
@@ -39,7 +38,7 @@ struct Message // buffer for command
 struct Message msg[MAXMSG] =
     {
         {{0xFF, 0, 0xFF, 0, 0, 0, 0}, 3}, // idle msg
-        {{0, 0, 0, 0, 0, 0, 0}, 3}        // locoMsg with 128 speed steps
+        {{1, 0, 0, 0, 0, 0, 0}, 3}        // locoMsg with 128 speed steps
 };
 
 int msgIndex = 0;
@@ -191,7 +190,7 @@ void assembleDccMsg()
    Serial.print("Speed value: ");
    Serial.println(speedValue);
 
-   unsigned char address, data, checksum;
+   unsigned char data, checksum;
    // buttonState indicates direction. 1 is forwards, 0 is backwards
    // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
    if (buttonState == 1)
@@ -203,23 +202,20 @@ void assembleDccMsg()
       data = 64 + speedValue;
    }
 
-   // Get the address of the locomotive
-   address = locoAddresses[currentLocoAddressIndex];
-   // Change the loco address index to the next locomotive
-   if (currentLocoAddressIndex > sizeof(locoAddresses) / sizeof(locoAddresses[0]))
-   {
-      currentLocoAddressIndex = 0;
-   }
-   else
-      currentLocoAddressIndex++;
-
-   checksum = address ^ data;
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
-   msg[1].data[0] = currentLocoAddressIndex;
+   msg[1].data[0] = locoAddresses[locoAddressIndex];
    msg[1].data[1] = data;
+   checksum = msg[1].data[0] ^ data;
    msg[1].data[2] = checksum;
 
    Serial.print("address: ");
-   Serial.println(address);
+   Serial.println(locoAddresses[locoAddressIndex]);
    interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
+
+   if (locoAddressIndex >= (sizeof(locoAddresses) / sizeof(locoAddresses[0]) - 1))
+   {
+      locoAddressIndex = 0;
+   }
+   else
+      locoAddressIndex++;
 }
