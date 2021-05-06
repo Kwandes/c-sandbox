@@ -1,3 +1,7 @@
+//Timer frequency is 2MHz for ( /8 prescale from 16MHz )
+#define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
+#define TIMER_LONG 0x1B  // 116usec pulse length 27 255-27 =228
+
 //Setup Timer2.
 //Configures the 8-Bit Timer2 to generate an interrupt at the specified frequency.
 //Returns the time load value which must be loaded into TCNT2 inside your ISR routine.
