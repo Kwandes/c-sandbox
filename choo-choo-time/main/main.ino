@@ -1,7 +1,9 @@
 
 #define DCC_PIN 4   // Arduino pin for DCC out
 #define SOUND_PIN 3 // sense for sound
-#define DIR_PIN 2   // sense for direction
+//#define DIR_PIN 2   // sense for direction
+const int BUTTON_PIN = 2; // the number of the pushbutton pin
+const int LED_PIN = 13;   // the number of the LED pin
 
 //Timer frequency is 2MHz for ( /8 prescale from 16MHz )
 #define TIMER_SHORT 0x8D // 58usec pulse length 141 255-141=114
@@ -27,6 +29,8 @@ unsigned char dir = 1;       //forward
 unsigned char locoAdr = 40;  // this is the (fixed) address of the loco
 unsigned char sound = 0;
 
+volatile int buttonState = 0;
+
 struct Message // buffer for command
 {
    unsigned char data[7];
@@ -44,14 +48,13 @@ struct Message msg[MAXMSG] =
 int msgIndex = 0;
 int byteIndex = 0;
 
-
 ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 {
    //Capture the current timer value TCTN2. This is how much error we have
    //due to interrupt latency and the work in this function
    //Reload the timer and correct for latency.
    unsigned char latency;
-   Serial.print("ISR got called: ");
+   //Serial.print("ISR got called: ");
    if (secondInterrupt)
    { // for every second interupt just toggle signal
       digitalWrite(DCC_PIN, 1);
@@ -128,15 +131,45 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
          // Serial.print('0');
       }
    }
-   Serial.println(latency);
+   //Serial.println(latency);
+}
+
+// Variables for ensuring the button presses don't get registered multiple times
+// Also known as debouncing
+volatile unsigned long buttonLastDebounceTime = 0;
+volatile unsigned long buttonDebounceDelay = 50;
+
+void pin_ISR()
+{
+
+   // Get time since last bounce and return if it us less than the button bounce delay
+   if ((millis() - buttonLastDebounceTime) < buttonDebounceDelay)
+   {
+      return;
+   }
+   buttonLastDebounceTime = millis();
+
+   digitalWrite(LED_PIN, HIGH);
+
+   buttonState = !buttonState;
+   Serial.print("Button got pressed, state: ");
+   Serial.println(buttonState);
 }
 
 void setup(void)
 {
    Serial.begin(9600);
-   pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
+   //pinMode(DIR_PIN, INPUT_PULLUP);   // pin 2 // QUESTION:  where does it originate from - it just sets the output to max value to ensure it is max
    pinMode(SOUND_PIN, INPUT_PULLUP); // pin 3
    pinMode(DCC_PIN, OUTPUT);         // pin 4 this is for the DCC Signal
+
+   // initialize the pushbutton pin as an input:
+   pinMode(BUTTON_PIN, INPUT);
+   // initialize the LED pin as an output:
+   pinMode(LED_PIN, OUTPUT);
+
+   // Attach an interrupt to the ISR vector
+   attachInterrupt(0, pin_ISR, FALLING);
 
    assembleDccMsg();
    setupTimer2(); // Start the timer
@@ -147,6 +180,7 @@ void loop(void)
    Serial.println("Loop time");
    delay(200);
    assembleDccMsg();
+   digitalWrite(LED_PIN, LOW);
 }
 
 void assembleDccMsg()
@@ -154,7 +188,7 @@ void assembleDccMsg()
    int i, j;
    unsigned char data, xdata;
 
-   i = digitalRead(DIR_PIN);
+   i = buttonState; //digitalRead(DIR_PIN);
    j = digitalRead(SOUND_PIN);
 
    if (sound == 1)
