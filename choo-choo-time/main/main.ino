@@ -191,47 +191,31 @@ void assembleDccMsg()
 {
 
    int speedValue = analogRead(POTENTIOMETER_PIN);
-   Serial.println(speedValue);
    // The potentiometer returns a value between 0 and 1023
    // the value is mapped to a high of 1022 to account for extra resistance in the circuit
-   speedValue = map(speedValue, 0, 1022, 0, 16);
-   //speedValue = map(speedValue, 0, 16, 1, 127);
+   // The train speeds are controlled with 16 values, from 0 to 15;
+   speedValue = map(speedValue, 0, 1022, 0, 15);
 
    Serial.print("Speed value: ");
    Serial.println(speedValue);
 
-   int i, j;
-   unsigned char data, xdata;
-
-   i = buttonState; //digitalRead(DIR_PIN);
-   j = digitalRead(SOUND_PIN);
-
-   if (sound == 1)
+   unsigned char data, checksum;
+   // buttonState indicates direction. 1 is forwards, 0 is backwards
+   // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
+   if (buttonState == 1)
    {
-      data = 128;
-      sound = 0;
-   }
-   else
+      data = 96 + speedValue;
+   } else
    {
-      if (j == HIGH)
-      {
-         if (i == HIGH)
-            data = 0x66;
-         else
-            data = 0x46;
-      }
-      else
-      {
-         data = 129;
-         sound = 1;
-      }
+      data = 64 + speedValue;
    }
 
-   xdata = msg[1].data[0] ^ data;
+   checksum =  msg[1].data[0] ^ data;
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
    msg[1].data[1] = data;
-   msg[1].data[2] = xdata;
+   msg[1].data[2] = checksum;
 
+   Serial.print("data: ");
    Serial.println(data);
    interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
 }
