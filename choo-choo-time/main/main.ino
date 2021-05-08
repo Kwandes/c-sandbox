@@ -26,7 +26,7 @@ unsigned char cbit = 0x80;
 // Message / train control related variables
 unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed commands
 
-volatile unsigned char locoAddresses[] = {9, 11}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {11}; // this is the (fixed) address of the loco
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0; // used to determine the direction of the train movement
 
@@ -245,4 +245,67 @@ void assembleDccMsg()
    }
    else
       locoAddressIndex++;
+}
+
+// control of distance between trains aka collision prevention system aka CPS
+// the system only works with two trains on the track, and the track having a switch for a separate, longer route
+unsigned long timeBetweenTrains = 0; // time between detections
+unsigned long lastDetectionTime = 0;
+unsigned long minimumDistanceBetweenTrains = 5000; // 5000 miliseconds aka 5 seconds
+unsigned int isTimeBetweenTrainsDecreasing = 0;    // bool - true if the trains keep taking less time between each reading set,aka get closer to each other
+unsigned int isFirstTrain = 0;                     //
+unsigned int setSwitchForLongerRoute = 0;          // if true, the switch is set for the longer route
+
+void pin_soundSensor_ISR()
+{
+   // only triggered on the first time the trains pass the sensor
+   if (lastDetectionTime == 0)
+   {
+      lastDetectionTime = millis();
+      return;
+   }
+
+   // if the first train passes and the time between the train is decreasing, send the second train onto the longer track
+   if (isFirstTrain == 1 && isTimeBetweenTrainsDecreasing == 1)
+   {
+      setSwitchForLongerRoute = 1;
+      messageType = COMMAND_SWITCH;
+   }
+   if (isFirstTrain == 1 && isTimeBetweenTrainsDecreasing == 0) // send both trains on the same track
+   {
+      setSwitchForLongerRoute = 0;
+      messageType = COMMAND_SWITCH;
+   }
+   else if (isFirstTrain == 0)   // if the second train is passing, calculate the distance
+   {
+      setSwitchForLongerRoute = 0;
+
+      // decide if the second train needs to be slowed down
+      if (timeBetweenTrains < (millis() - lastDetectionTime))
+      {
+         isTimeBetweenTrainsDecreasing = 1; // true
+      }
+      else
+         isTimeBetweenTrainsDecreasing = 0; //false
+   }
+
+   // flip which train will we detected by the next interrupt
+   isFirstTrain = !isFirstTrain;
+   // reset the timers
+   timeBetweenTrains = millis() - lastDetectionTime;
+   lastDetectionTime = millis();
+
+   // if the distance between trains is too short, hardstop both (emergency)
+   if (timeBetweenTrains < minimumDistanceBetweenTrains)
+   {
+      messageType = COMMAND_EMERGENCY_HARDSTOP;
+   }
+   
+}
+
+void decideSwitches()
+{
+   if (isTimeBetweenTrainsDecreasing)
+   {
+   }
 }
