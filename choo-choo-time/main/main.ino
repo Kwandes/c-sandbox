@@ -3,6 +3,8 @@
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
 #define POTENTIOMETER_PIN A5 // the number of the Potentiometer input
+#define SONIC_PING_PIN 6     // trigger pin on the ultrasonic sensor
+#define SONIC_ECHO_PIN 7     // echo pin on the ultrasonic sensor
 #define LED_PIN 13           // the number of the LED pin
 
 // ISR-specific variables
@@ -152,8 +154,8 @@ void pin_ISR()
    digitalWrite(LED_PIN, HIGH);
 
    buttonState = !buttonState;
-   Serial.print("Button got pressed, state: ");
-   Serial.println(buttonState);
+   //Serial.print("Button got pressed, state: ");
+   //Serial.println(buttonState);
 }
 
 void setup(void)
@@ -166,6 +168,10 @@ void setup(void)
    // initialize the LED pin as an output
    pinMode(LED_PIN, OUTPUT);
 
+   // initialize ultrasonic sensor pins
+   pinMode(SONIC_PING_PIN, OUTPUT);
+   pinMode(SONIC_ECHO_PIN, INPUT);
+
    // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
@@ -175,10 +181,26 @@ void setup(void)
 
 void loop(void)
 {
-   Serial.println("Loop time");
-   delay(200);
+   //Serial.println("Loop time");
+   delay(100);
+   triggerUltrasonicReading();
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
+}
+
+unsigned int ultrasonicDistanceThreshold = 50; // at which point something is marked as close vs far, in centimeters
+
+void triggerUltrasonicReading()
+{
+   unsigned long duration;
+   digitalWrite(SONIC_PING_PIN, LOW);
+   delayMicroseconds(2);
+   digitalWrite(SONIC_PING_PIN, HIGH);
+   delayMicroseconds(10);
+   digitalWrite(SONIC_PING_PIN, LOW);
+   duration = pulseIn(SONIC_ECHO_PIN, HIGH);
+   //Serial.print("Distance: ");
+   Serial.println((duration / 29 / 2) < 50 );
 }
 
 void assembleDccMsg()
@@ -197,8 +219,8 @@ void assembleDccMsg()
       // The train speeds are controlled with 16 values, from 0 to 15;
       speedValue = map(speedValue, 0, 1022, 0, 15);
 
-      Serial.print("Speed value: ");
-      Serial.println(speedValue);
+      //Serial.print("Speed value: ");
+      //Serial.println(speedValue);
 
       // buttonState indicates direction. 1 is forwards, 0 is backwards
       // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
@@ -235,8 +257,8 @@ void assembleDccMsg()
    checksum = msg[1].data[0] ^ data;
    msg[1].data[2] = checksum;
 
-   Serial.print("address: ");
-   Serial.println(locoAddresses[locoAddressIndex]);
+   //Serial.print("address: ");
+   //Serial.println(locoAddresses[locoAddressIndex]);
    interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
 
    if (locoAddressIndex >= (sizeof(locoAddresses) / sizeof(locoAddresses[0]) - 1))
@@ -255,6 +277,7 @@ unsigned long minimumDistanceBetweenTrains = 5000; // 5000 miliseconds aka 5 sec
 unsigned int isTimeBetweenTrainsDecreasing = 0;    // bool - true if the trains keep taking less time between each reading set,aka get closer to each other
 unsigned int isFirstTrain = 0;                     //
 unsigned int setSwitchForLongerRoute = 0;          // if true, the switch is set for the longer route
+unsigned long timeBetween = 0;
 
 void pin_soundSensor_ISR()
 {
@@ -276,7 +299,7 @@ void pin_soundSensor_ISR()
       setSwitchForLongerRoute = 0;
       messageType = COMMAND_SWITCH;
    }
-   else if (isFirstTrain == 0)   // if the second train is passing, calculate the distance
+   else if (isFirstTrain == 0) // if the second train is passing, calculate the distance
    {
       setSwitchForLongerRoute = 0;
 
@@ -300,7 +323,6 @@ void pin_soundSensor_ISR()
    {
       messageType = COMMAND_EMERGENCY_HARDSTOP;
    }
-   
 }
 
 void decideSwitches()
