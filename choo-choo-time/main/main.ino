@@ -1,4 +1,5 @@
 #include "messageTypes.h"
+#include "stack.h"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -158,6 +159,13 @@ void pin_ISR()
    //Serial.println(buttonState);
 }
 
+// The program can store up to a certain amount of commands to send out
+// if there is nothing in the queue, an idle message is sent out
+// each command consists of two bytes that are used as data in the message struct
+#define MAX_COMMAND_QUEUE 20
+struct Stack* commandQueue;
+//unsigned char commandQueue[MAX_COMMAND_QUEUE][2];
+
 void setup(void)
 {
    Serial.begin(9600);
@@ -175,7 +183,20 @@ void setup(void)
    // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
-   assembleDccMsg();
+
+   commandQueue = createStack(MAX_COMMAND_QUEUE);
+   push(commandQueue, 1);
+   push(commandQueue, 2);
+   push(commandQueue, 3);
+   push(commandQueue, 5);
+   push(commandQueue, 50);
+   push(commandQueue, 51);
+   push(commandQueue, 52);
+   push(commandQueue, 53);
+   push(commandQueue, 54);
+   push(commandQueue, 55);
+
+   //assembleDccMsg();
    setupTimer2(); // Start the timer
 }
 
@@ -186,6 +207,7 @@ void loop(void)
    triggerUltrasonicReading();
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
+   Serial.println(pop(commandQueue));
 }
 
 unsigned int ultrasonicDistanceThreshold = 50; // at which point something is marked as close vs far, in centimeters
@@ -200,7 +222,7 @@ void triggerUltrasonicReading()
    digitalWrite(SONIC_PING_PIN, LOW);
    duration = pulseIn(SONIC_ECHO_PIN, HIGH);
    //Serial.print("Distance: ");
-   Serial.println((duration / 29 / 2) < 50 );
+   //Serial.println((duration / 29 / 2) < 50 );
 }
 
 void assembleDccMsg()
@@ -325,9 +347,13 @@ void pin_soundSensor_ISR()
    }
 }
 
-void decideSwitches()
+void setCommand()
 {
-   if (isTimeBetweenTrainsDecreasing)
-   {
-   }
+   idleMessage();
+   
+}
+
+void idleMessage()
+{
+
 }
