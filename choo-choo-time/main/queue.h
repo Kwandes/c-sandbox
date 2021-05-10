@@ -6,11 +6,11 @@
 #endif
 
 struct Queue* createQueue();
-struct QNode* newNode(int k);
-void enQueue(struct Queue* q, int k);
+struct QNode* newNode(unsigned short k);
+void enQueue(struct Queue* q, unsigned short k);
 void deQueue(struct Queue* q);
-short getFirst(struct Queue* q);
-short getLast(struct Queue* q);
+unsigned short getFirst(struct Queue* q);
+unsigned short getLast(struct Queue* q);
 
 #ifdef __cplusplus
 }

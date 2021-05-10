@@ -5,7 +5,7 @@
   
 // A linked list (LL) node to store a queue entry
 struct QNode {
-    short key;
+    unsigned short key;
     struct QNode* next;
 };
   
@@ -16,7 +16,7 @@ struct Queue {
 };
   
 // A utility function to create a new linked list node.
-struct QNode* newNode(int k)
+struct QNode* newNode(unsigned short k)
 {
     struct QNode* temp = (struct QNode*)malloc(sizeof(struct QNode));
     temp->key = k;
@@ -33,7 +33,7 @@ struct Queue* createQueue()
 }
   
 // The function to add a key k to q
-void enQueue(struct Queue* q, short k)
+void enQueue(struct Queue* q, unsigned short k)
 {
     // Create a new LL node
     struct QNode* temp = newNode(k);
@@ -68,22 +68,22 @@ void deQueue(struct Queue* q)
     free(temp);
 }
 
-short getFirst(struct Queue* q)
+unsigned short getFirst(struct Queue* q)
 {
     if ((q->front) == NULL)
     {
-        return -1;
+        return 0;
     }
     
     return q->front->key;
 }
 
-short getLast(struct Queue* q)
+unsigned short getLast(struct Queue* q)
 {
 
     if ((q->rear) == NULL)
     {
-        return -1;
+        return 0;
     }
     
     return q->rear->key;

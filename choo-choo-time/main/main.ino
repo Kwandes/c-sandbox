@@ -161,9 +161,8 @@ void pin_ISR()
 
 // The program can store up to a certain amount of commands to send out
 // if there is nothing in the queue, an idle message is sent out
-// each command consists of two bytes that are used as data in the message struct
-#define MAX_COMMAND_QUEUE 20
-struct Stack *commandQueue;
+// each command consists of two bytes, which are stored together as a short
+struct Queue *commandQueue;
 //unsigned char commandQueue[MAX_COMMAND_QUEUE][2];
 
 void setup(void)
@@ -183,21 +182,21 @@ void setup(void)
    // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
-   struct Queue *q = createQueue();
-   enQueue(q, 10);
-   enQueue(q, 20);
-   deQueue(q);
-   deQueue(q);
-   enQueue(q, 30);
-   enQueue(q, 40);
-   enQueue(q, 50);
-   deQueue(q);
-   Serial.println(getFirst(q)); // prints 40
-   Serial.println(getFirst(q)); // prints 40
-   deQueue(q);
-   Serial.println(getFirst(q)); // prints 50
-   deQueue(q);
-   Serial.println(getFirst(q)); // the queue is empty so it prints -1
+   commandQueue = createQueue();
+   enQueue(commandQueue, 0x7161); // add a command to the queue
+   enQueue(commandQueue, 0xEEDD); // add a second command to the queue
+   unsigned short command = getFirst(commandQueue);
+   short byteOne = command >> 8;
+   short byteTwo = command & 0x00FF;
+   Serial.println(byteOne); // prints 113 aka 0x71
+   Serial.println(byteTwo); // prints 97 aka 0x61
+   deQueue(commandQueue); // remove the command from the queue
+   command = getFirst(commandQueue);
+   byteOne = command >> 8;
+   byteTwo = command & 0x00FF;
+   Serial.println(byteOne); // prints 238 aka 0xEE
+   Serial.println(byteTwo); // prints 221 aka 0xDDD
+
    //assembleDccMsg();
    setupTimer2(); // Start the timer
 }
