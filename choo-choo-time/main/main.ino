@@ -163,7 +163,7 @@ void pin_ISR()
 // if there is nothing in the queue, an idle message is sent out
 // each command consists of two bytes that are used as data in the message struct
 #define MAX_COMMAND_QUEUE 20
-struct Stack* commandQueue;
+struct Stack *commandQueue;
 //unsigned char commandQueue[MAX_COMMAND_QUEUE][2];
 
 void setup(void)
@@ -183,7 +183,7 @@ void setup(void)
    // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
-
+   
    commandQueue = createStack(MAX_COMMAND_QUEUE);
    push(commandQueue, 1);
    push(commandQueue, 2);
@@ -202,6 +202,18 @@ void setup(void)
 
 void loop(void)
 {
+   /*Serial.println("------");
+   short testShort = 0xFFFF;
+   // extract invidual bytes from a short (2 bytes)
+   int byteOne = testShort >> 8;
+   int byteTwo = testShort & 0x00FF;
+   Serial.println((int)byteOne);
+   Serial.println((int)byteTwo);
+
+   // Conbine the bytes back into one short for storage
+   short testTwo = (byteOne << 8) | byteTwo;
+   Serial.println(testTwo);
+   */
    //Serial.println("Loop time");
    delay(100);
    triggerUltrasonicReading();
@@ -350,10 +362,8 @@ void pin_soundSensor_ISR()
 void setCommand()
 {
    idleMessage();
-   
 }
 
 void idleMessage()
 {
-
 }

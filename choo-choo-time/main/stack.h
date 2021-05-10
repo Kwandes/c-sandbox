@@ -7,11 +7,11 @@
 
 
 struct Stack* createStack(unsigned capacity);
-int isFull(struct Stack* stack);
-int isEmpty(struct Stack* stack);
-void push(struct Stack* stack, int item);
-int pop(struct Stack* stack);
-int peek(struct Stack* stack);
+short isFull(struct Stack* stack);
+short isEmpty(struct Stack* stack);
+void push(struct Stack* stack, short item);
+short pop(struct Stack* stack);
+short peek(struct Stack* stack);
 
 
 #ifdef __cplusplus
