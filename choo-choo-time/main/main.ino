@@ -29,9 +29,14 @@ unsigned char cbit = 0x80;
 // Message / train control related variables
 unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed commands
 
-volatile unsigned char locoAddresses[] = {11}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {9, 11, 40}; // this is the (fixed) address of the loco
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0; // used to determine the direction of the train movement
+
+// The program can store up to a certain amount of commands to send out
+// if there is nothing in the queue, an idle message is sent out
+// each command consists of two bytes, which are stored together as a short
+struct Queue *commandQueue;
 
 struct Message // buffer for command
 {
@@ -144,7 +149,6 @@ volatile unsigned long buttonDebounceDelay = 50;
 
 void pin_ISR()
 {
-
    // Get time since last bounce and return if it us less than the button bounce delay
    if ((millis() - buttonLastDebounceTime) < buttonDebounceDelay)
    {
@@ -155,68 +159,80 @@ void pin_ISR()
    digitalWrite(LED_PIN, HIGH);
 
    buttonState = !buttonState;
-   //Serial.print("Button got pressed, state: ");
-   //Serial.println(buttonState);
+   Serial.print("Button got pressed, state: ");
+   Serial.println(buttonState);
+
+   // Add new speed and direction command for all trains
+   for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+   {
+      Serial.print("Adding a command for train address: ");
+      Serial.println(locoAddresses[i]);
+      enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
+   }
 }
 
-// The program can store up to a certain amount of commands to send out
-// if there is nothing in the queue, an idle message is sent out
-// each command consists of two bytes, which are stored together as a short
-struct Queue *commandQueue;
-//unsigned char commandQueue[MAX_COMMAND_QUEUE][2];
+unsigned short createSpeedCommand(char address)
+{
+   int speedValue = analogRead(POTENTIOMETER_PIN);
+   // The potentiometer returns a value between 0 and 1023
+   // the value is mapped to a high of 1022 to account for extra resistance in the circuit
+   // The train speeds are controlled with 16 values, from 0 to 15;
+   speedValue = map(speedValue, 0, 1022, 0, 15);
+
+   //Serial.print("Speed value: ");
+   //Serial.println(speedValue);
+
+   char speedByte;
+   // buttonState indicates direction. 1 is forwards, 0 is backwards
+   // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
+   if (buttonState == 1)
+   {
+      speedByte = 96 + speedValue;
+   }
+   else
+   {
+      speedByte = 64 + speedValue;
+   }
+
+   return (address << 8) | speedByte;
+}
 
 void setup(void)
 {
    Serial.begin(9600);
-   pinMode(DCC_PIN, OUTPUT); // pin 4 this is for the DCC Signal
-
-   // initialize the pushbutton pin as an input
-   pinMode(BUTTON_PIN, INPUT);
-   // initialize the LED pin as an output
+   pinMode(DCC_PIN, OUTPUT);
    pinMode(LED_PIN, OUTPUT);
 
-   // initialize ultrasonic sensor pins
+   // Initialize ultrasonic sensor pins
    pinMode(SONIC_PING_PIN, OUTPUT);
    pinMode(SONIC_ECHO_PIN, INPUT);
 
    // Attach an interrupt to the ISR vector for getting button input
+   pinMode(BUTTON_PIN, INPUT);
    attachInterrupt(0, pin_ISR, FALLING);
 
+   // Initialize the queue for storing commands
    commandQueue = createQueue();
-   enQueue(commandQueue, 0x7161); // add a command to the queue
-   enQueue(commandQueue, 0xEEDD); // add a second command to the queue
-   unsigned short command = getFirst(commandQueue);
-   short byteOne = command >> 8;
-   short byteTwo = command & 0x00FF;
-   Serial.println(byteOne); // prints 113 aka 0x71
-   Serial.println(byteTwo); // prints 97 aka 0x61
-   deQueue(commandQueue); // remove the command from the queue
-   command = getFirst(commandQueue);
-   byteOne = command >> 8;
-   byteTwo = command & 0x00FF;
-   Serial.println(byteOne); // prints 238 aka 0xEE
-   Serial.println(byteTwo); // prints 221 aka 0xDDD
 
-   //assembleDccMsg();
-   setupTimer2(); // Start the timer
+   // Start all of the trains
+   for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+   {
+      Serial.print("Adding a command for train address: ");
+      Serial.println(locoAddresses[i]);
+      enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
+   }
+
+   // Start the process of sending commands
+   assembleDccMsg();
+
+   // Start the timer for the internal ISR
+   setupTimer2();
 }
 
 void loop(void)
 {
-   /*Serial.println("------");
-   short testShort = 0xFFFF;
-   // extract invidual bytes from a short (2 bytes)
-   int byteOne = testShort >> 8;
-   int byteTwo = testShort & 0x00FF;
-   Serial.println((int)byteOne);
-   Serial.println((int)byteTwo);
-
-   // Conbine the bytes back into one short for storage
-   short testTwo = (byteOne << 8) | byteTwo;
-   Serial.println(testTwo);
-   */
-   //Serial.println("Loop time");
-   delay(100);
+   Serial.println("Loop time");
+   delay(200);
    triggerUltrasonicReading();
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
@@ -239,68 +255,36 @@ void triggerUltrasonicReading()
 
 void assembleDccMsg()
 {
+   if (getFirst(commandQueue) == 0)
+   {
+      // There is no commands queued, sending an idle command
+      noInterrupts();
+      msg[1].data[0] = 0x00;
+      msg[1].data[1] = 0x00;
+      msg[1].data[2] = 0x00 ^ 0x00;
+      interrupts();
+      return;
+   }
 
-   unsigned char data, checksum;
+   Serial.println("There is a command in the queue!");
 
-   // Define data based on the type of the message that is supposed to be sent
-   switch (messageType)
-   {
-   case COMMAND_TRAIN_SPEED:
-   {
-      int speedValue = analogRead(POTENTIOMETER_PIN);
-      // The potentiometer returns a value between 0 and 1023
-      // the value is mapped to a high of 1022 to account for extra resistance in the circuit
-      // The train speeds are controlled with 16 values, from 0 to 15;
-      speedValue = map(speedValue, 0, 1022, 0, 15);
-
-      //Serial.print("Speed value: ");
-      //Serial.println(speedValue);
-
-      // buttonState indicates direction. 1 is forwards, 0 is backwards
-      // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
-      if (buttonState == 1)
-      {
-         data = 96 + speedValue;
-      }
-      else
-      {
-         data = 64 + speedValue;
-      }
-      break;
-   }
-   case COMMAND_TRAIN_EFFECT:
-   {
-      Serial.println("Train effects have not been implemented yet");
-      break;
-   }
-   case COMMAND_SWITCH:
-   {
-      Serial.println("Switch commands have not been implemented yet");
-      break;
-   }
-   default:
-   {
-      Serial.println("The switch got ignored");
-      break;
-   }
-   }
+   unsigned short command = getFirst(commandQueue);
+   char byteOne = command >> 8;     // in 0x1234, this is 0x12
+   char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
+   Serial.print("Train: ");
+   Serial.println((int)byteOne);
+   Serial.print("Command: ");
+   Serial.println((int)byteTwo);
+   deQueue(commandQueue); // remove the command from the queue
+   // Code for combining the bytes back into one short for storage in the commandQueue:
+   // short testTwo = (byteOne << 8) | byteTwo;
 
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
-   msg[1].data[0] = locoAddresses[locoAddressIndex];
-   msg[1].data[1] = data;
-   checksum = msg[1].data[0] ^ data;
-   msg[1].data[2] = checksum;
+   msg[1].data[0] = byteOne;
+   msg[1].data[1] = byteTwo;
+   msg[1].data[2] = byteOne ^ byteTwo; // checksum
 
-   //Serial.print("address: ");
-   //Serial.println(locoAddresses[locoAddressIndex]);
-   interrupts(); //QUESTION: Where does method come from - tis just enables interrupts
-
-   if (locoAddressIndex >= (sizeof(locoAddresses) / sizeof(locoAddresses[0]) - 1))
-   {
-      locoAddressIndex = 0;
-   }
-   else
-      locoAddressIndex++;
+   interrupts(); // tis just enables interrupts
 }
 
 // control of distance between trains aka collision prevention system aka CPS
