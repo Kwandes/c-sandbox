@@ -1,5 +1,5 @@
 #include "messageTypes.h"
-#include "stack.h"
+#include "queue.h"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -183,19 +183,21 @@ void setup(void)
    // Attach an interrupt to the ISR vector for getting button input
    attachInterrupt(0, pin_ISR, FALLING);
 
-   
-   commandQueue = createStack(MAX_COMMAND_QUEUE);
-   push(commandQueue, 1);
-   push(commandQueue, 2);
-   push(commandQueue, 3);
-   push(commandQueue, 5);
-   push(commandQueue, 50);
-   push(commandQueue, 51);
-   push(commandQueue, 52);
-   push(commandQueue, 53);
-   push(commandQueue, 54);
-   push(commandQueue, 55);
-
+   struct Queue *q = createQueue();
+   enQueue(q, 10);
+   enQueue(q, 20);
+   deQueue(q);
+   deQueue(q);
+   enQueue(q, 30);
+   enQueue(q, 40);
+   enQueue(q, 50);
+   deQueue(q);
+   Serial.println(getFirst(q)); // prints 40
+   Serial.println(getFirst(q)); // prints 40
+   deQueue(q);
+   Serial.println(getFirst(q)); // prints 50
+   deQueue(q);
+   Serial.println(getFirst(q)); // the queue is empty so it prints -1
    //assembleDccMsg();
    setupTimer2(); // Start the timer
 }
@@ -219,7 +221,6 @@ void loop(void)
    triggerUltrasonicReading();
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
-   Serial.println(pop(commandQueue));
 }
 
 unsigned int ultrasonicDistanceThreshold = 50; // at which point something is marked as close vs far, in centimeters
