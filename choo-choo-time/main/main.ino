@@ -31,7 +31,8 @@ unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed 
 
 volatile unsigned char locoAddresses[] = {9, 11, 40}; // this is the (fixed) address of the loco
 volatile unsigned int locoAddressIndex = 0;
-volatile int buttonState = 0; // used to determine the direction of the train movement
+volatile int buttonState = 0;     // used to determine the direction of the train movement
+unsigned short emergencyStop = 0; // if true, all trains will be stopped until the button is pressed;
 
 // The program can store up to a certain amount of commands to send out
 // if there is nothing in the queue, an idle message is sent out
@@ -158,6 +159,20 @@ void pin_ISR()
 
    digitalWrite(LED_PIN, HIGH);
 
+   if (emergencyStop == 1)
+   {
+      Serial.println("Resuming normal operation");
+      emergencyStop = 0;
+      // Start all of the trains
+      for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+      {
+         Serial.print("Adding a command for train address: ");
+         Serial.println(locoAddresses[i]);
+         enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
+      }
+      return;
+   }
+
    buttonState = !buttonState;
    Serial.print("Button got pressed, state: ");
    Serial.println(buttonState);
@@ -255,9 +270,9 @@ void triggerUltrasonicReading()
 
 void assembleDccMsg()
 {
-   if (getFirst(commandQueue) == 0)
+   // Emergency stop got triggered or there are no commands queued, sending an idle command
+   if (emergencyStop == 1 || getFirst(commandQueue) == 0)
    {
-      // There is no commands queued, sending an idle command
       noInterrupts();
       msg[1].data[0] = 0x00;
       msg[1].data[1] = 0x00;
@@ -340,6 +355,19 @@ void pin_soundSensor_ISR()
    if (timeBetweenTrains < minimumDistanceBetweenTrains)
    {
       messageType = COMMAND_EMERGENCY_HARDSTOP;
+   }
+}
+
+void triggerEmergencyStop()
+{
+   Serial.println("Emergency Stop got called. Stopping all trains indefinitely");
+   emergencyStop = 1;
+
+   for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+   {
+      Serial.print("Adding a hardstop for train address: ");
+      Serial.println(locoAddresses[i]);
+      enQueue(commandQueue, (locoAddresses[i] << 8) | 0x61);
    }
 }
 
