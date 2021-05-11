@@ -232,8 +232,8 @@ void setup(void)
    // Start all of the trains
    for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
    {
-      Serial.print("Adding a command for train address: ");
-      Serial.println(locoAddresses[i]);
+      //Serial.print("Adding a command for train address: ");
+      //Serial.println(locoAddresses[i]);
       enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
    }
 
@@ -244,16 +244,29 @@ void setup(void)
    setupTimer2();
 }
 
+unsigned short loopDuration = 200; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
+unsigned short readingsPerLoop = 6;
+// Variables for determining whether or not the reading indicates a train
+unsigned short requiredPositiveReadings = 4; // times needed for the distance to be below threshold before the code consideres the train to be in front of the sensor
+unsigned short maxNegativeReadings = 4;      // times needed for the distance to be above threshold before the code consideres the train to have passed
+unsigned short positiveReadingCount = 0;
+unsigned short negativeReadingCount = 0;
+unsigned short trainIsDetected = 0;
+
 void loop(void)
 {
-   Serial.println("Loop time");
-   delay(200);
-   triggerUltrasonicReading();
+   //Serial.println("Loop time");
+   // Read the distance twice per loop
+   for (int i = 0; i < readingsPerLoop; i++)
+   {
+      triggerUltrasonicReading();
+      delay(loopDuration / readingsPerLoop);
+   }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
 }
 
-unsigned int ultrasonicDistanceThreshold = 50; // at which point something is marked as close vs far, in centimeters
+unsigned int ultrasonicDistanceThreshold = 20; // at which point something is marked as close vs far, in centimeters
 
 void triggerUltrasonicReading()
 {
@@ -264,8 +277,50 @@ void triggerUltrasonicReading()
    delayMicroseconds(10);
    digitalWrite(SONIC_PING_PIN, LOW);
    duration = pulseIn(SONIC_ECHO_PIN, HIGH);
+   unsigned short detectedWithinThreshold = duration / 29 / 2 < ultrasonicDistanceThreshold;
+
    //Serial.print("Distance: ");
-   //Serial.println((duration / 29 / 2) < 50 );
+   Serial.println(detectedWithinThreshold);
+
+   if (detectedWithinThreshold == 1)
+   {
+      // the train is in front of the sensor
+      positiveReadingCount++;
+      negativeReadingCount = 0;
+   }
+   else if (detectedWithinThreshold == 0 && trainIsDetected == 1)
+   {
+      // the train may not be in front of the sensor or the reading is incorrect
+      negativeReadingCount++;
+   }
+
+   // the train has passed the sensor
+   if (negativeReadingCount >= maxNegativeReadings)
+   {
+      positiveReadingCount = 0;
+      negativeReadingCount = 0;
+      trainIsDetected = 0;
+      Serial.println("The train has fucked off");
+   }
+
+   // The train is detected for sure
+   if (positiveReadingCount >= requiredPositiveReadings)
+   {
+      // if the train was already detected, do nothing
+      if (trainIsDetected == 1)
+      {
+         return;
+      }
+
+      // First time the train got detected in this set of readings, perform collision prevention logic
+      trainIsDetected = 1;
+      Serial.println("The train is here!");
+      collisionPreventionAlgorithm();
+   }
+}
+
+void collisionPreventionAlgorithm()
+{
 }
 
 void assembleDccMsg()
@@ -281,15 +336,15 @@ void assembleDccMsg()
       return;
    }
 
-   Serial.println("There is a command in the queue!");
+   //Serial.println("There is a command in the queue!");
 
    unsigned short command = getFirst(commandQueue);
    char byteOne = command >> 8;     // in 0x1234, this is 0x12
    char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
-   Serial.print("Train: ");
-   Serial.println((int)byteOne);
-   Serial.print("Command: ");
-   Serial.println((int)byteTwo);
+   //Serial.print("Train: ");
+   //Serial.println((int)byteOne);
+   //Serial.print("Command: ");
+   //Serial.println((int)byteTwo);
    deQueue(commandQueue); // remove the command from the queue
    // Code for combining the bytes back into one short for storage in the commandQueue:
    // short testTwo = (byteOne << 8) | byteTwo;
