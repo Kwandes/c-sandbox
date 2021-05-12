@@ -1,6 +1,7 @@
 #include "messageTypes.h"
 #include "queue.h"
 #include "accessoryDataGenerator.h"
+//#include "collision-prevention.ino"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -27,12 +28,16 @@ unsigned char preambleCount = 16;
 unsigned char outbyte = 0;
 unsigned char cbit = 0x80;
 
+int DELAY_VALUE = 0;
+int SPEED_VALUE = 0;
+
 // Message / train control related variables
 unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed commands
 
-volatile unsigned char locoAddresses[] = {9, 11, 40}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {7, 11}; // this is the (fixed) address of the loco
+unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
-volatile int buttonState = 0;     // used to determine the direction of the train movement
+volatile int buttonState = 1;     // used to determine the direction of the train movement
 unsigned short emergencyStop = 0; // if true, all trains will be stopped until the button is pressed;
 
 // The program can store up to a certain amount of commands to send out
@@ -174,7 +179,7 @@ void pin_ISR()
       return;
    }
 
-   buttonState = !buttonState;
+   //buttonState = !buttonState;
    Serial.print("Button got pressed, state: ");
    Serial.println(buttonState);
 
@@ -185,10 +190,6 @@ void pin_ISR()
       Serial.println(locoAddresses[i]);
       enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
    }
-   
-   Serial.println("Switch Change time");
-   enQueue(commandQueue, accessoryDataGenerator(102, 1, buttonState));
-   enQueue(commandQueue, accessoryDataGenerator(102, 0, buttonState));
 }
 
 unsigned short createSpeedCommand(char address)
@@ -197,8 +198,10 @@ unsigned short createSpeedCommand(char address)
    // The potentiometer returns a value between 0 and 1023
    // the value is mapped to a high of 1022 to account for extra resistance in the circuit
    // The train speeds are controlled with 16 values, from 0 to 15;
+   DELAY_VALUE = map( speedValue, 0, 1022, 3000, 0 );
    speedValue = map(speedValue, 0, 1022, 0, 15);
-
+   SPEED_VALUE = speedValue;
+   
    //Serial.print("Speed value: ");
    //Serial.println(speedValue);
 
@@ -242,6 +245,9 @@ void setup(void)
       enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
    }
 
+   enQueue(commandQueue, accessoryDataGenerator(102, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(102, 0, 1));
+
    // Start the process of sending commands
    assembleDccMsg();
 
@@ -252,7 +258,7 @@ void setup(void)
 unsigned short loopDuration = 200; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
 unsigned short readingsPerLoop = 6;
 // Variables for determining whether or not the reading indicates a train
-unsigned short requiredPositiveReadings = 4; // times needed for the distance to be below threshold before the code consideres the train to be in front of the sensor
+unsigned short requiredPositiveReadings = 3; // times needed for the distance to be below threshold before the code consideres the train to be in front of the sensor
 unsigned short maxNegativeReadings = 4;      // times needed for the distance to be above threshold before the code consideres the train to have passed
 unsigned short positiveReadingCount = 0;
 unsigned short negativeReadingCount = 0;
@@ -285,7 +291,7 @@ void triggerUltrasonicReading()
    unsigned short detectedWithinThreshold = duration / 29 / 2 < ultrasonicDistanceThreshold;
 
    //Serial.print("Distance: ");
-   Serial.println(detectedWithinThreshold);
+   //Serial.println(detectedWithinThreshold);
 
    if (detectedWithinThreshold == 1)
    {
@@ -320,18 +326,14 @@ void triggerUltrasonicReading()
       // First time the train got detected in this set of readings, perform collision prevention logic
       trainIsDetected = 1;
       Serial.println("The train is here!");
-      collisionPreventionAlgorithm();
+      collisionPreventionAlgorithm(); // located in collision-prevention.ino file
    }
-}
-
-void collisionPreventionAlgorithm()
-{
 }
 
 void assembleDccMsg()
 {
-   // Emergency stop got triggered or there are no commands queued, sending an idle command
-   if (emergencyStop == 1 || getFirst(commandQueue) == 0)
+   // there are no commands queued, sending an idle command
+   if (getFirst(commandQueue) == 0)
    {
       noInterrupts();
       msg[1].data[0] = 0x01;
@@ -344,12 +346,12 @@ void assembleDccMsg()
    //Serial.println("There is a command in the queue!");
 
    unsigned short command = getFirst(commandQueue);
-   char byteOne = command >> 8;     // in 0x1234, this is 0x12
-   char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
-   //Serial.print("Train: ");
-   //Serial.println((int)byteOne);
-   //Serial.print("Command: ");
-   //Serial.println((int)byteTwo);
+   unsigned char byteOne = command >> 8;     // in 0x1234, this is 0x12
+   unsigned char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
+   Serial.print("Train: ");
+   Serial.println((int)byteOne);
+   Serial.print("Command: ");
+   Serial.println((int)byteTwo);
    deQueue(commandQueue); // remove the command from the queue
    // Code for combining the bytes back into one short for storage in the commandQueue:
    // short testTwo = (byteOne << 8) | byteTwo;
@@ -360,62 +362,6 @@ void assembleDccMsg()
    msg[1].data[2] = byteOne ^ byteTwo; // checksum
 
    interrupts(); // tis just enables interrupts
-}
-
-// control of distance between trains aka collision prevention system aka CPS
-// the system only works with two trains on the track, and the track having a switch for a separate, longer route
-unsigned long timeBetweenTrains = 0; // time between detections
-unsigned long lastDetectionTime = 0;
-unsigned long minimumDistanceBetweenTrains = 5000; // 5000 miliseconds aka 5 seconds
-unsigned int isTimeBetweenTrainsDecreasing = 0;    // bool - true if the trains keep taking less time between each reading set,aka get closer to each other
-unsigned int isFirstTrain = 0;                     //
-unsigned int setSwitchForLongerRoute = 0;          // if true, the switch is set for the longer route
-unsigned long timeBetween = 0;
-
-void pin_soundSensor_ISR()
-{
-   // only triggered on the first time the trains pass the sensor
-   if (lastDetectionTime == 0)
-   {
-      lastDetectionTime = millis();
-      return;
-   }
-
-   // if the first train passes and the time between the train is decreasing, send the second train onto the longer track
-   if (isFirstTrain == 1 && isTimeBetweenTrainsDecreasing == 1)
-   {
-      setSwitchForLongerRoute = 1;
-      messageType = COMMAND_SWITCH;
-   }
-   if (isFirstTrain == 1 && isTimeBetweenTrainsDecreasing == 0) // send both trains on the same track
-   {
-      setSwitchForLongerRoute = 0;
-      messageType = COMMAND_SWITCH;
-   }
-   else if (isFirstTrain == 0) // if the second train is passing, calculate the distance
-   {
-      setSwitchForLongerRoute = 0;
-
-      // decide if the second train needs to be slowed down
-      if (timeBetweenTrains < (millis() - lastDetectionTime))
-      {
-         isTimeBetweenTrainsDecreasing = 1; // true
-      }
-      else
-         isTimeBetweenTrainsDecreasing = 0; //false
-   }
-
-   // flip which train will we detected by the next interrupt
-   isFirstTrain = !isFirstTrain;
-   // reset the timers
-   timeBetweenTrains = millis() - lastDetectionTime;
-   lastDetectionTime = millis();
-
-   // if the distance between trains is too short, hardstop both (emergency)
-   if (timeBetweenTrains < minimumDistanceBetweenTrains)
-   {
-      messageType = COMMAND_EMERGENCY_HARDSTOP;
-   }
 }
 
 void triggerEmergencyStop()
@@ -429,13 +375,4 @@ void triggerEmergencyStop()
       Serial.println(locoAddresses[i]);
       enQueue(commandQueue, (locoAddresses[i] << 8) | 0x61);
    }
-}
-
-void setCommand()
-{
-   idleMessage();
-}
-
-void idleMessage()
-{
 }
