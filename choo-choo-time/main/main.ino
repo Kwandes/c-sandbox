@@ -1,5 +1,6 @@
 #include "messageTypes.h"
 #include "queue.h"
+#include "accessoryDataGenerator.h"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -184,6 +185,10 @@ void pin_ISR()
       Serial.println(locoAddresses[i]);
       enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
    }
+   
+   Serial.println("Switch Change time");
+   enQueue(commandQueue, accessoryDataGenerator(102, 1, buttonState));
+   enQueue(commandQueue, accessoryDataGenerator(102, 0, buttonState));
 }
 
 unsigned short createSpeedCommand(char address)
@@ -329,9 +334,9 @@ void assembleDccMsg()
    if (emergencyStop == 1 || getFirst(commandQueue) == 0)
    {
       noInterrupts();
-      msg[1].data[0] = 0x00;
+      msg[1].data[0] = 0x01;
       msg[1].data[1] = 0x00;
-      msg[1].data[2] = 0x00 ^ 0x00;
+      msg[1].data[2] = 0x01 ^ 0x00;
       interrupts();
       return;
    }
