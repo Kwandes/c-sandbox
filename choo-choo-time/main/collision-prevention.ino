@@ -107,12 +107,14 @@ void simpleVersion()
     delay(DELAY_VALUE);
     Serial.println("Stopping bitch");
     // stop the train that just got on
-    if ( SPEED_VALUE > 11 ) {
+    if (SPEED_VALUE > 11)
+    {
         enQueue(commandQueue, ((locoAddresses[bitch] << 8) | 0x61));
-    } else {
+    }
+    else
+    {
         enQueue(commandQueue, ((locoAddresses[bitch] << 8) | 0x60));
     }
-    
 
     bitch = !bitch;
     // start the other bitch

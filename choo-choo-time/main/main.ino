@@ -1,7 +1,5 @@
-#include "messageTypes.h"
 #include "queue.h"
 #include "accessoryDataGenerator.h"
-//#include "collision-prevention.ino"
 
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
@@ -32,8 +30,6 @@ int DELAY_VALUE = 0;
 int SPEED_VALUE = 0;
 
 // Message / train control related variables
-unsigned char messageType = COMMAND_TRAIN_SPEED; // By default send train speed commands
-
 volatile unsigned char locoAddresses[] = {7, 11}; // this is the (fixed) address of the loco
 unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
@@ -198,10 +194,10 @@ unsigned short createSpeedCommand(char address)
    // The potentiometer returns a value between 0 and 1023
    // the value is mapped to a high of 1022 to account for extra resistance in the circuit
    // The train speeds are controlled with 16 values, from 0 to 15;
-   DELAY_VALUE = map( speedValue, 0, 1022, 3000, 0 );
+   DELAY_VALUE = map(speedValue, 0, 1022, 3000, 0);
    speedValue = map(speedValue, 0, 1022, 0, 15);
    SPEED_VALUE = speedValue;
-   
+
    //Serial.print("Speed value: ");
    //Serial.println(speedValue);
 
