@@ -30,11 +30,17 @@ int DELAY_VALUE = 0;
 int SPEED_VALUE = 0;
 
 // Message / train control related variables
-volatile unsigned char locoAddresses[] = {7, 11}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {7, 11, 40}; // this is the (fixed) address of the loco
 unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
-volatile int buttonState = 1;     // used to determine the direction of the train movement
+volatile int buttonState = 0;     // used to remember the state of the button
 unsigned short emergencyStop = 0; // if true, all trains will be stopped until the button is pressed;
+
+// light addresses mapped up starting with 12 and going down the track on the schematic
+const unsigned short lightAddresses[] = {12, 52, 21, 51, 62, 22, 61, 11, 14, 42, 82, 81, 31, 32, 91, 92, 111, 112, 102, 101, 122, 121, 131, 132, 151, 152, 142, 141};
+
+// switch addresses mapped up starting with 12 and going down the track on the schematic
+const unsigned short switchAddresses[] = {221, 222, 234, 233, 224, 223, 231, 232, 242, 250, 249, 241, 243, 251, 244, 252};
 
 // The program can store up to a certain amount of commands to send out
 // if there is nothing in the queue, an idle message is sent out
@@ -175,17 +181,22 @@ void pin_ISR()
       return;
    }
 
-   //buttonState = !buttonState;
    Serial.print("Button got pressed, state: ");
    Serial.println(buttonState);
 
-   // Add new speed and direction command for all trains
-   for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+   // change all the lights according to the button state
+   for (short i = 0; i < (sizeof(lightAddresses) / sizeof(lightAddresses[0])); i++)
    {
-      Serial.print("Adding a command for train address: ");
-      Serial.println(locoAddresses[i]);
-      enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
+      enQueue(commandQueue, accessoryDataGenerator(lightAddresses[i], 1, buttonState));
    }
+
+   // change all the switches according to the button state
+   for (short i = 0; i < (sizeof(switchAddresses) / sizeof(switchAddresses[0])); i++)
+   {
+      enQueue(commandQueue, accessoryDataGenerator(switchAddresses[i], 1, buttonState));
+   }
+
+   buttonState = !buttonState;
 }
 
 unsigned short createSpeedCommand(char address)
@@ -233,16 +244,29 @@ void setup(void)
    // Initialize the queue for storing commands
    commandQueue = createQueue();
 
+   // Stop all of the trains
+   for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
+   {
+      enQueue(commandQueue, (locoAddresses[i] << 8) | 0x61); // 0x61 - hardstop
+   }
+
+   // set all of the lights to red
+   for (short i = 0; i < (sizeof(lightAddresses) / sizeof(lightAddresses[0])); i++)
+   {
+      enQueue(commandQueue, accessoryDataGenerator(lightAddresses[i], 1, 1));
+   }
+
+   // set all of the switches to forward
+   for (short i = 0; i < (sizeof(switchAddresses) / sizeof(switchAddresses[0])); i++)
+   {
+      enQueue(commandQueue, accessoryDataGenerator(switchAddresses[i], 1, 1));
+   }
+
    // Start all of the trains
    for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
    {
-      //Serial.print("Adding a command for train address: ");
-      //Serial.println(locoAddresses[i]);
       enQueue(commandQueue, createSpeedCommand(locoAddresses[i]));
    }
-
-   enQueue(commandQueue, accessoryDataGenerator(102, 1, 1));
-   enQueue(commandQueue, accessoryDataGenerator(102, 0, 1));
 
    // Start the process of sending commands
    assembleDccMsg();
@@ -251,7 +275,7 @@ void setup(void)
    setupTimer2();
 }
 
-unsigned short loopDuration = 200; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
+unsigned short loopDuration = 100; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
 unsigned short readingsPerLoop = 6;
 // Variables for determining whether or not the reading indicates a train
 unsigned short requiredPositiveReadings = 3; // times needed for the distance to be below threshold before the code consideres the train to be in front of the sensor
@@ -266,7 +290,7 @@ void loop(void)
    // Read the distance twice per loop
    for (int i = 0; i < readingsPerLoop; i++)
    {
-      triggerUltrasonicReading();
+      //triggerUltrasonicReading();
       delay(loopDuration / readingsPerLoop);
    }
    assembleDccMsg();
@@ -344,10 +368,10 @@ void assembleDccMsg()
    unsigned short command = getFirst(commandQueue);
    unsigned char byteOne = command >> 8;     // in 0x1234, this is 0x12
    unsigned char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
-   Serial.print("Train: ");
-   Serial.println((int)byteOne);
-   Serial.print("Command: ");
-   Serial.println((int)byteTwo);
+   //Serial.print("Train: ");
+   //Serial.println((int)byteOne);
+   //Serial.print("Command: ");
+   //Serial.println((int)byteTwo);
    deQueue(commandQueue); // remove the command from the queue
    // Code for combining the bytes back into one short for storage in the commandQueue:
    // short testTwo = (byteOne << 8) | byteTwo;
