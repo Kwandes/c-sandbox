@@ -1,4 +1,5 @@
 #include "accessoryDataGenerator.h"
+#include "queue.h"
 
 // control of distance between trains aka collision prevention system aka CPS
 // the system only works with two trains on the track, and the track having a switch for a separate, longer route
