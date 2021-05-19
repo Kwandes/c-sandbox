@@ -4,8 +4,6 @@
 #define DCC_PIN 4            // Arduino pin for DCC out
 #define BUTTON_PIN 2         // the number of the pushbutton pin
 #define POTENTIOMETER_PIN A5 // the number of the Potentiometer input
-#define SONIC_PING_PIN 6     // trigger pin on the ultrasonic sensor
-#define SONIC_ECHO_PIN 7     // echo pin on the ultrasonic sensor
 #define LED_PIN 13           // the number of the LED pin
 
 // ISR-specific variables
@@ -212,17 +210,8 @@ unsigned short createSpeedCommand(char address)
    //Serial.print("Speed value: ");
    //Serial.println(speedValue);
 
-   char speedByte;
-   // buttonState indicates direction. 1 is forwards, 0 is backwards
-   // value of 96 corresponds to going forwards at speed 0, 64 is going backwards at speed 0
-   if (buttonState == 1)
-   {
-      speedByte = 96 + speedValue;
-   }
-   else
-   {
-      speedByte = 64 + speedValue;
-   }
+   // value of 96 corresponds to going forwards at speed 0
+   char speedByte = 96 + speedValue;
 
    return (address << 8) | speedByte;
 }
@@ -232,10 +221,6 @@ void setup(void)
    Serial.begin(9600);
    pinMode(DCC_PIN, OUTPUT);
    pinMode(LED_PIN, OUTPUT);
-
-   // Initialize ultrasonic sensor pins
-   pinMode(SONIC_PING_PIN, OUTPUT);
-   pinMode(SONIC_ECHO_PIN, INPUT);
 
    // Attach an interrupt to the ISR vector for getting button input
    pinMode(BUTTON_PIN, INPUT);
@@ -277,12 +262,6 @@ void setup(void)
 
 unsigned short loopDuration = 100; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
 unsigned short readingsPerLoop = 6;
-// Variables for determining whether or not the reading indicates a train
-unsigned short requiredPositiveReadings = 3; // times needed for the distance to be below threshold before the code consideres the train to be in front of the sensor
-unsigned short maxNegativeReadings = 4;      // times needed for the distance to be above threshold before the code consideres the train to have passed
-unsigned short positiveReadingCount = 0;
-unsigned short negativeReadingCount = 0;
-unsigned short trainIsDetected = 0;
 
 void loop(void)
 {
@@ -290,64 +269,10 @@ void loop(void)
    // Read the distance twice per loop
    for (int i = 0; i < readingsPerLoop; i++)
    {
-      //triggerUltrasonicReading();
       delay(loopDuration / readingsPerLoop);
    }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
-}
-
-unsigned int ultrasonicDistanceThreshold = 20; // at which point something is marked as close vs far, in centimeters
-
-void triggerUltrasonicReading()
-{
-   unsigned long duration;
-   digitalWrite(SONIC_PING_PIN, LOW);
-   delayMicroseconds(2);
-   digitalWrite(SONIC_PING_PIN, HIGH);
-   delayMicroseconds(10);
-   digitalWrite(SONIC_PING_PIN, LOW);
-   duration = pulseIn(SONIC_ECHO_PIN, HIGH);
-   unsigned short detectedWithinThreshold = duration / 29 / 2 < ultrasonicDistanceThreshold;
-
-   //Serial.print("Distance: ");
-   //Serial.println(detectedWithinThreshold);
-
-   if (detectedWithinThreshold == 1)
-   {
-      // the train is in front of the sensor
-      positiveReadingCount++;
-      negativeReadingCount = 0;
-   }
-   else if (detectedWithinThreshold == 0 && trainIsDetected == 1)
-   {
-      // the train may not be in front of the sensor or the reading is incorrect
-      negativeReadingCount++;
-   }
-
-   // the train has passed the sensor
-   if (negativeReadingCount >= maxNegativeReadings)
-   {
-      positiveReadingCount = 0;
-      negativeReadingCount = 0;
-      trainIsDetected = 0;
-      Serial.println("The train has fucked off");
-   }
-
-   // The train is detected for sure
-   if (positiveReadingCount >= requiredPositiveReadings)
-   {
-      // if the train was already detected, do nothing
-      if (trainIsDetected == 1)
-      {
-         return;
-      }
-
-      // First time the train got detected in this set of readings, perform collision prevention logic
-      trainIsDetected = 1;
-      Serial.println("The train is here!");
-      collisionPreventionAlgorithm(); // located in collision-prevention.ino file
-   }
 }
 
 void assembleDccMsg()
