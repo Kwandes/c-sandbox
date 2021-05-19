@@ -16,6 +16,7 @@ unsigned short accessoryDataGenerator(unsigned short address, unsigned char powe
         accessoryAddress = address / 4 + 1;
         registerAddress = (address % 4 - 1) << 1;
     }
+    
     // First byte: 10 + address(6)
     unsigned int tempByteOne = accessoryAddress << 10;
     tempByteOne = tempByteOne >> 10;
