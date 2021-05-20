@@ -6,6 +6,9 @@
 #define POTENTIOMETER_PIN A5 // the number of the Potentiometer input
 #define LED_PIN 13           // the number of the LED pin
 
+#define true 1
+unsigned char crash = 1;
+
 // ISR-specific variables
 #define PREAMBLE 0  // definitions for ISR state machine
 #define SEPERATOR 1 // definitions for ISR state machine
@@ -28,7 +31,7 @@ int DELAY_VALUE = 0;
 int SPEED_VALUE = 0;
 
 // Message / train control related variables
-volatile unsigned char locoAddresses[] = {7, 9, 11, 40}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {11, 8, 40}; // this is the (fixed) address of the loco
 unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0;     // used to remember the state of the button
@@ -244,11 +247,10 @@ void setup(void)
 
    // Attach an interrupt to the ISR vector for getting button input
    pinMode(BUTTON_PIN, INPUT);
-   attachInterrupt(0, pin_ISR, FALLING);
+   //attachInterrupt(0, pin_ISR, FALLING);
 
    // Initialize the queue for storing commands
    commandQueue = createQueue();
-
    // Stop all of the trains
    for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
    {
@@ -266,6 +268,30 @@ void setup(void)
    {
       enQueue(commandQueue, accessoryDataGenerator(switchAddresses[i], 1, 1));
    }
+
+   // setup lights and switches to their initial positions for the algorithm to work
+
+    // 42 is red since setup but will change in step 2 and 3
+   enQueue(commandQueue, accessoryDataGenerator(42, 1, 0));
+    // 101, 141 are green since setup but will change in step Step 2 and 3
+   enQueue(commandQueue, accessoryDataGenerator(101, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(141, 1, 1));
+    // switches 242, 250 are straight since setup, and WILL NOT change. Already set
+    // switches 224, 223 are set to keep orange on a loop since setup, and WILL NOT change
+   enQueue(commandQueue, accessoryDataGenerator(223, 1, 0));
+   enQueue(commandQueue, accessoryDataGenerator(224, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(223, 0, 0));
+   enQueue(commandQueue, accessoryDataGenerator(224, 0, 1));
+    // switches 234, 233 are set to go from 1 to 2 to 1 since setup and WILL NOT change
+   enQueue(commandQueue, accessoryDataGenerator(233, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(234, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(233, 0, 1));
+   enQueue(commandQueue, accessoryDataGenerator(234, 0, 1));
+    // switches 231, 232 are set to send 1 onto 4 since setup, and WILL NOT change
+   enQueue(commandQueue, accessoryDataGenerator(231, 1, 0)); // supposed to be 0
+   enQueue(commandQueue, accessoryDataGenerator(232, 1, 1));
+   enQueue(commandQueue, accessoryDataGenerator(231, 0, 0));
+   enQueue(commandQueue, accessoryDataGenerator(232, 0, 1));
 
    // Start all of the trains
    for (short i = 0; i < (sizeof(locoAddresses) / sizeof(locoAddresses[0])); i++)
@@ -294,6 +320,11 @@ void loop(void)
       readTrackSensors();
       delay(loopDuration / readingsPerLoop);
    }
+   
+    if (crash == true)
+    {
+        dont();
+    }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
 }
@@ -305,6 +336,7 @@ void readTrackSensors()
       unsigned char reading = digitalRead(trackSensorAddresses[i][0]);
       if (reading != 1)
       {
+         
          Serial.print("Triggered sensor: ");
 
          // adjust the output to match sensor numbers instead of array index
@@ -319,16 +351,14 @@ void readTrackSensors()
             Serial.print(i + 1); // index begins at 0
          }
 
-         Serial.print(" - ");
-         Serial.println(reading);
+         Serial.print(" - index: ");
+         Serial.print(i);
 
+         Serial.print(" - pin: ");
+         Serial.println(trackSensorAddresses[i][0]);
+         
          trackSensorAddresses[i][1]++;
       }
-   }
-   if (
-       trackSensorAddresses[0][1] == 2)
-   {
-      collisionPreventionAlgorithm();
    }
 }
 
