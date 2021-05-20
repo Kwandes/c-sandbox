@@ -40,6 +40,9 @@ const unsigned short lightAddresses[] = {12, 52, 21, 51, 62, 22, 61, 11, 14, 42,
 // switch addresses mapped up starting with 12 and going down the track on the schematic
 const unsigned short switchAddresses[] = {221, 222, 234, 233, 224, 223, 231, 232, 242, 250, 249, 241, 243, 251, 244, 252};
 
+// pins for getting track sensor inputs
+const unsigned int trackSensorAddresses[] = {13, 12, 11, 10, 9, 8, 7, 6, 5, A0, A1, A2, A3, A4};
+
 // The program can store up to a certain amount of commands to send out
 // if there is nothing in the queue, an idle message is sent out
 // each command consists of two bytes, which are stored together as a short
@@ -222,6 +225,23 @@ void setup(void)
    pinMode(DCC_PIN, OUTPUT);
    pinMode(LED_PIN, OUTPUT);
 
+   // Add pins for handling track sensors
+   // has to be done one by one instead of iterating through the array, otherwise it bugs out
+   pinMode(13, INPUT); // corresponds to trackSensorAddresses[0]
+   pinMode(12, INPUT);
+   pinMode(11, INPUT);
+   pinMode(10, INPUT);
+   pinMode(9, INPUT);
+   pinMode(8, INPUT);
+   pinMode(7, INPUT);
+   pinMode(6, INPUT);
+   pinMode(5, INPUT);
+   pinMode(A0, INPUT);
+   pinMode(A1, INPUT);
+   pinMode(A2, INPUT);
+   pinMode(A3, INPUT);
+   pinMode(A4, INPUT); // corresponds to trackSensorAddresses[13]
+
    // Attach an interrupt to the ISR vector for getting button input
    pinMode(BUTTON_PIN, INPUT);
    attachInterrupt(0, pin_ISR, FALLING);
@@ -261,7 +281,7 @@ void setup(void)
 }
 
 unsigned short loopDuration = 100; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
-unsigned short readingsPerLoop = 6;
+unsigned short readingsPerLoop = 4;
 
 void loop(void)
 {
@@ -269,10 +289,38 @@ void loop(void)
    // Read the distance twice per loop
    for (int i = 0; i < readingsPerLoop; i++)
    {
+      readTrackSensors();
       delay(loopDuration / readingsPerLoop);
    }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
+}
+
+void readTrackSensors()
+{
+   for (short i = 0; i < (sizeof(trackSensorAddresses) / sizeof(trackSensorAddresses[0])); i++)
+   {
+      unsigned char reading = digitalRead(trackSensorAddresses[i]);
+      if (reading != 1)
+      {
+         Serial.print("Triggered sensor: ");
+
+         // adjust the output to match sensor numbers instead of array index
+         // index 0 corresponds to sensor 1, index 7 corresponds to sensor 9 etc. There is no sensor 7
+         if (i > 5)
+         {
+            Serial.print(i + 2); // there is no sensor 7 so increase output by 2
+         }
+         else
+         {
+
+            Serial.print(i + 1); // index begins at 0
+         }
+
+         Serial.print(" - ");
+         Serial.println(reading);
+      }
+   }
 }
 
 void assembleDccMsg()
