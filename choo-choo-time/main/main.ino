@@ -28,7 +28,7 @@ int DELAY_VALUE = 0;
 int SPEED_VALUE = 0;
 
 // Message / train control related variables
-volatile unsigned char locoAddresses[] = {7, 11, 40}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {7, 9, 11, 40}; // this is the (fixed) address of the loco
 unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0;     // used to remember the state of the button
@@ -41,7 +41,7 @@ const unsigned short lightAddresses[] = {12, 52, 21, 51, 62, 22, 61, 11, 14, 42,
 const unsigned short switchAddresses[] = {221, 222, 234, 233, 224, 223, 231, 232, 242, 250, 249, 241, 243, 251, 244, 252};
 
 // pins for getting track sensor inputs
-const unsigned int trackSensorAddresses[] = {13, 12, 11, 10, 9, 8, 7, 6, 5, A0, A1, A2, A3, A4};
+unsigned int trackSensorAddresses[][2] = {{13, 0}, {12, 0}, {11, 0}, {10, 0}, {9, 0}, {8, 0}, {7, 0}, {6, 0}, {5, 0}, {A0, 0}, {A1, 0}, {A2, 0}, {A3, 0}, {A4, 0}};
 
 // The program can store up to a certain amount of commands to send out
 // if there is nothing in the queue, an idle message is sent out
@@ -278,6 +278,8 @@ void setup(void)
 
    // Start the timer for the internal ISR
    setupTimer2();
+
+   echoSensorCunters();
 }
 
 unsigned short loopDuration = 100; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
@@ -300,7 +302,7 @@ void readTrackSensors()
 {
    for (short i = 0; i < (sizeof(trackSensorAddresses) / sizeof(trackSensorAddresses[0])); i++)
    {
-      unsigned char reading = digitalRead(trackSensorAddresses[i]);
+      unsigned char reading = digitalRead(trackSensorAddresses[i][0]);
       if (reading != 1)
       {
          Serial.print("Triggered sensor: ");
@@ -319,7 +321,14 @@ void readTrackSensors()
 
          Serial.print(" - ");
          Serial.println(reading);
+
+         trackSensorAddresses[i][1]++;
       }
+   }
+   if (
+       trackSensorAddresses[0][1] == 2)
+   {
+      collisionPreventionAlgorithm();
    }
 }
 
