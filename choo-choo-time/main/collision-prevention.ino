@@ -67,13 +67,24 @@ void bigTracc()
         // 101, 141 turn red (stop outside tracks)
         // turn 42 green
 
+        if (trackSensorAddresses[11][1] >= 2)
+        {
+            enQueue(commandQueue, accessoryDataGenerator(141, 1, 0));
+        }
+
+        if (trackSensorAddresses[7][1] >= 2)
+        {
+            enQueue(commandQueue, accessoryDataGenerator(101, 1, 0));
+        }
+
         if (trackSensorAddresses[11][1] < 2 || trackSensorAddresses[7][1] < 2)
         {
             shatter;
         }
+
         Serial.print("Track sensor 11 aka index: ");
         Serial.println(trackSensorAddresses[11][0]);
-        Serial.print("Track sensor 11 aka index: ");
+        Serial.print("Track sensor 7 aka index: ");
         Serial.println(trackSensorAddresses[7][0]);
         echoSensorCunters();
 
@@ -83,9 +94,10 @@ void bigTracc()
         enQueue(commandQueue, accessoryDataGenerator(249, 1, 0));
         enQueue(commandQueue, accessoryDataGenerator(249, 0, 0));
 
-
-        enQueue(commandQueue, accessoryDataGenerator(101, 1, 0));
+        // The lights should already be sut but security redundancy is good
         enQueue(commandQueue, accessoryDataGenerator(141, 1, 0));
+        enQueue(commandQueue, accessoryDataGenerator(101, 1, 0));
+        // release Orange train into wild
         enQueue(commandQueue, accessoryDataGenerator(42, 1, 1));
 
         currentState = ORANGE_IS_BACK;
@@ -110,7 +122,6 @@ void bigTracc()
 
         enQueue(commandQueue, accessoryDataGenerator(249, 1, 1));
         enQueue(commandQueue, accessoryDataGenerator(249, 0, 1));
-
 
         enQueue(commandQueue, accessoryDataGenerator(42, 1, 0));
         enQueue(commandQueue, accessoryDataGenerator(101, 1, 1));
