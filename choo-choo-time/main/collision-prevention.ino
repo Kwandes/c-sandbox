@@ -52,6 +52,7 @@ void bigTracc()
             shatter;
         }
 
+        Serial.println("Orange awaits");
         Serial.print("Track sensor 4 aka index: ");
         Serial.println(trackSensorAddresses[3][0]);
         echoSensorCunters();
@@ -82,17 +83,23 @@ void bigTracc()
             shatter;
         }
 
+        Serial.println("Orange is Goooo");
         Serial.print("Track sensor 11 aka index: ");
         Serial.println(trackSensorAddresses[11][0]);
         Serial.print("Track sensor 7 aka index: ");
         Serial.println(trackSensorAddresses[7][0]);
         echoSensorCunters();
 
-        enQueue(commandQueue, accessoryDataGenerator(241, 1, 1));
-        enQueue(commandQueue, accessoryDataGenerator(241, 0, 1));
+        enQueue(commandQueue, accessoryDataGenerator(242, 1, 0));
+        enQueue(commandQueue, accessoryDataGenerator(242, 0, 0));
 
-        enQueue(commandQueue, accessoryDataGenerator(249, 1, 0));
-        enQueue(commandQueue, accessoryDataGenerator(249, 0, 0));
+        enQueue(commandQueue, accessoryDataGenerator(241, 1, 0));
+        enQueue(commandQueue, accessoryDataGenerator(241, 0, 0));
+
+        enQueue(commandQueue, accessoryDataGenerator(249, 1, 1));
+        enQueue(commandQueue, accessoryDataGenerator(249, 0, 1));
+
+        delay(1000);
 
         // The lights should already be sut but security redundancy is good
         enQueue(commandQueue, accessoryDataGenerator(141, 1, 0));
@@ -117,8 +124,12 @@ void bigTracc()
             shatter;
         }
 
-        enQueue(commandQueue, accessoryDataGenerator(241, 1, 0));
-        enQueue(commandQueue, accessoryDataGenerator(241, 0, 0));
+        Serial.println("Orange is back");
+        enQueue(commandQueue, accessoryDataGenerator(242, 1, 1));
+        enQueue(commandQueue, accessoryDataGenerator(242, 0, 1));
+
+        enQueue(commandQueue, accessoryDataGenerator(241, 1, 1));
+        enQueue(commandQueue, accessoryDataGenerator(241, 0, 1));
 
         enQueue(commandQueue, accessoryDataGenerator(249, 1, 1));
         enQueue(commandQueue, accessoryDataGenerator(249, 0, 1));
@@ -126,6 +137,8 @@ void bigTracc()
         enQueue(commandQueue, accessoryDataGenerator(42, 1, 0));
         enQueue(commandQueue, accessoryDataGenerator(101, 1, 1));
         enQueue(commandQueue, accessoryDataGenerator(141, 1, 1));
+
+        clearSensorCunters();
 
         currentState = ORANGE_AWAITS;
         shatter;

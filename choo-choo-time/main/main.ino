@@ -31,7 +31,7 @@ int DELAY_VALUE = 0;
 int SPEED_VALUE = 0;
 
 // Message / train control related variables
-volatile unsigned char locoAddresses[] = {11, 8, 40}; // this is the (fixed) address of the loco
+volatile unsigned char locoAddresses[] = {7, 8, 40}; // this is the (fixed) address of the loco
 unsigned char amountOfLocoAddresses = 2;
 volatile unsigned int locoAddressIndex = 0;
 volatile int buttonState = 0;     // used to remember the state of the button
@@ -267,8 +267,8 @@ void setup(void)
    for (short i = 0; i < (sizeof(switchAddresses) / sizeof(switchAddresses[0])); i++)
    {
       enQueue(commandQueue, accessoryDataGenerator(switchAddresses[i], 1, 1));
+      enQueue(commandQueue, accessoryDataGenerator(switchAddresses[i], 0, 1));
    }
-
    // setup lights and switches to their initial positions for the algorithm to work
 
     // 42 is red since setup but will change in step 2 and 3
