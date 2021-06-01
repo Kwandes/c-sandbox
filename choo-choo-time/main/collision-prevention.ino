@@ -1,7 +1,6 @@
 #include "accessoryDataGenerator.h"
 #include "queue.h"
 
-#define bitch void
 #define shatter break
 // State machine setup for bigTracc algorithm
 #define ORANGE_AWAITS 1
@@ -55,8 +54,8 @@ void bigTracc()
         Serial.println("Orange awaits");
         Serial.print("Track sensor 4 aka index: ");
         Serial.println(trackSensorAddresses[3][0]);
-        echoSensorCunters();
-        clearSensorCunters();
+        echoSensorCounters();
+        clearSensorCounters();
 
         currentState = ORANGE_IS_GOOOO;
         shatter;
@@ -88,7 +87,7 @@ void bigTracc()
         Serial.println(trackSensorAddresses[11][0]);
         Serial.print("Track sensor 7 aka index: ");
         Serial.println(trackSensorAddresses[7][0]);
-        echoSensorCunters();
+        echoSensorCounters();
 
         enQueue(commandQueue, accessoryDataGenerator(242, 1, 0));
         enQueue(commandQueue, accessoryDataGenerator(242, 0, 0));
@@ -138,7 +137,7 @@ void bigTracc()
         enQueue(commandQueue, accessoryDataGenerator(101, 1, 1));
         enQueue(commandQueue, accessoryDataGenerator(141, 1, 1));
 
-        clearSensorCunters();
+        clearSensorCounters();
 
         currentState = ORANGE_AWAITS;
         shatter;
@@ -148,12 +147,12 @@ void bigTracc()
     }
 }
 
-bitch dont()
+void dont()
 {
     bigTracc();
 }
 
-void echoSensorCunters()
+void echoSensorCounters()
 {
     for (short i = 0; i < (sizeof(trackSensorAddresses) / sizeof(trackSensorAddresses[0])); i++)
     {
@@ -162,7 +161,7 @@ void echoSensorCunters()
         Serial.println(trackSensorAddresses[i][1]);
     }
 }
-void clearSensorCunters()
+void clearSensorCounters()
 {
     for (short i = 0; i < (sizeof(trackSensorAddresses) / sizeof(trackSensorAddresses[0])); i++)
     {

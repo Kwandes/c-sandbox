@@ -6,9 +6,6 @@
 #define POTENTIOMETER_PIN A5 // the number of the Potentiometer input
 #define LED_PIN 13           // the number of the LED pin
 
-#define true 1
-unsigned char crash = 1;
-
 // ISR-specific variables
 #define PREAMBLE 0  // definitions for ISR state machine
 #define SEPERATOR 1 // definitions for ISR state machine
@@ -68,13 +65,13 @@ struct Message msg[MAXMSG] =
 int msgIndex = 0;
 int byteIndex = 0;
 
+// Runs multiple times 
 ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 {
    //Capture the current timer value TCTN2. This is how much error we have
    //due to interrupt latency and the work in this function
    //Reload the timer and correct for latency.
    unsigned char latency;
-   //Serial.print("ISR got called: ");
    if (secondInterrupt)
    { // for every second interupt just toggle signal
       digitalWrite(DCC_PIN, 1);
@@ -121,13 +118,11 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
          cbit = cbit >> 1;
          if (cbit == 0)
          { // last bit sent
-            //Serial.print(" ");
             byteIndex++;
             if (byteIndex >= msg[msgIndex].len) // is there a next byte?
             {                                   // this was already the XOR byte then advance to preamble
                state = PREAMBLE;
                preambleCount = 16;
-               //Serial.println();
             }
             else
             { // send separator and advance to next byte
@@ -142,17 +137,14 @@ ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
          latency = TCNT2;
          TCNT2 = latency + TIMER_SHORT;
          lastTimer = TIMER_SHORT;
-         //Serial.print('1');
       }
       else
       { // data = 0 long pulse
          latency = TCNT2;
          TCNT2 = latency + TIMER_LONG;
          lastTimer = TIMER_LONG;
-         // Serial.print('0');
       }
    }
-   //Serial.println(latency);
 }
 
 // Variables for ensuring the button presses don't get registered multiple times
@@ -201,25 +193,6 @@ void pin_ISR()
    }
 
    buttonState = !buttonState;
-}
-
-unsigned short createSpeedCommand(char address)
-{
-   int speedValue = analogRead(POTENTIOMETER_PIN);
-   // The potentiometer returns a value between 0 and 1023
-   // the value is mapped to a high of 1022 to account for extra resistance in the circuit
-   // The train speeds are controlled with 16 values, from 0 to 15;
-   DELAY_VALUE = map(speedValue, 0, 1022, 3000, 0);
-   speedValue = map(speedValue, 0, 1022, 0, 15);
-   SPEED_VALUE = speedValue;
-
-   //Serial.print("Speed value: ");
-   //Serial.println(speedValue);
-
-   // value of 96 corresponds to going forwards at speed 0
-   char speedByte = 96 + speedValue;
-
-   return (address << 8) | speedByte;
 }
 
 void setup(void)
@@ -305,15 +278,18 @@ void setup(void)
    // Start the timer for the internal ISR
    setupTimer2();
 
-   echoSensorCunters();
+   echoSensorCounters();
 }
 
 unsigned short loopDuration = 100; // Duration of the loop delays total, in miliseconds. Affects how often messages are assembled
 unsigned short readingsPerLoop = 4;
 
+// Just a little joke, calls the collision prevention algorithm
+#define true 1
+unsigned char goingToCrush = 1;
+
 void loop(void)
 {
-   //Serial.println("Loop time");
    // Read the distance twice per loop
    for (int i = 0; i < readingsPerLoop; i++)
    {
@@ -321,12 +297,28 @@ void loop(void)
       delay(loopDuration / readingsPerLoop);
    }
    
-    if (crash == true)
+    if (goingToCrush == true)
     {
         dont();
     }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
+}
+
+unsigned short createSpeedCommand(char address)
+{
+   int speedValue = analogRead(POTENTIOMETER_PIN);
+   // The potentiometer returns a value between 0 and 1023
+   // the value is mapped to a high of 1022 to account for extra resistance in the circuit
+   // The train speeds are controlled with 16 values, from 0 to 15;
+   DELAY_VALUE = map(speedValue, 0, 1022, 3000, 0);
+   speedValue = map(speedValue, 0, 1022, 0, 15);
+   SPEED_VALUE = speedValue;
+
+   // value of 96 corresponds to going forwards at speed 0
+   char speedByte = 96 + speedValue;
+
+   return (address << 8) | speedByte;
 }
 
 void readTrackSensors()
@@ -380,13 +372,8 @@ void assembleDccMsg()
    unsigned short command = getFirst(commandQueue);
    unsigned char byteOne = command >> 8;     // in 0x1234, this is 0x12
    unsigned char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
-   //Serial.print("Train: ");
-   //Serial.println((int)byteOne);
-   //Serial.print("Command: ");
-   //Serial.println((int)byteTwo);
+   
    deQueue(commandQueue); // remove the command from the queue
-   // Code for combining the bytes back into one short for storage in the commandQueue:
-   // short testTwo = (byteOne << 8) | byteTwo;
 
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR
    msg[1].data[0] = byteOne;
