@@ -8,7 +8,7 @@ unsigned short accessoryDataGenerator(unsigned short address, unsigned char powe
     unsigned int registerAddress;
     if (address % 4 == 0)
     {
-        accessoryAddress = ( address - 1 ) / 4 + 1;
+        accessoryAddress = (address - 1) / 4 + 1;
         registerAddress = 3 << 1;
     }
     else

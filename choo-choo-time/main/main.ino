@@ -65,7 +65,7 @@ struct Message msg[MAXMSG] =
 int msgIndex = 0;
 int byteIndex = 0;
 
-// Runs multiple times 
+// Runs multiple times
 ISR(TIMER2_OVF_vect) //Timer2 overflow interrupt vector handler
 {
    //Capture the current timer value TCTN2. This is how much error we have
@@ -244,23 +244,23 @@ void setup(void)
    }
    // setup lights and switches to their initial positions for the algorithm to work
 
-    // 42 is red since setup but will change in step 2 and 3
+   // 42 is red since setup but will change in step 2 and 3
    enQueue(commandQueue, accessoryDataGenerator(42, 1, 0));
-    // 101, 141 are green since setup but will change in step Step 2 and 3
+   // 101, 141 are green since setup but will change in step Step 2 and 3
    enQueue(commandQueue, accessoryDataGenerator(101, 1, 1));
    enQueue(commandQueue, accessoryDataGenerator(141, 1, 1));
-    // switches 242, 250 are straight since setup, and WILL NOT change. Already set
-    // switches 224, 223 are set to keep orange on a loop since setup, and WILL NOT change
+   // switches 242, 250 are straight since setup, and WILL NOT change. Already set
+   // switches 224, 223 are set to keep orange on a loop since setup, and WILL NOT change
    enQueue(commandQueue, accessoryDataGenerator(223, 1, 0));
    enQueue(commandQueue, accessoryDataGenerator(224, 1, 1));
    enQueue(commandQueue, accessoryDataGenerator(223, 0, 0));
    enQueue(commandQueue, accessoryDataGenerator(224, 0, 1));
-    // switches 234, 233 are set to go from 1 to 2 to 1 since setup and WILL NOT change
+   // switches 234, 233 are set to go from 1 to 2 to 1 since setup and WILL NOT change
    enQueue(commandQueue, accessoryDataGenerator(233, 1, 1));
    enQueue(commandQueue, accessoryDataGenerator(234, 1, 1));
    enQueue(commandQueue, accessoryDataGenerator(233, 0, 1));
    enQueue(commandQueue, accessoryDataGenerator(234, 0, 1));
-    // switches 231, 232 are set to send 1 onto 4 since setup, and WILL NOT change
+   // switches 231, 232 are set to send 1 onto 4 since setup, and WILL NOT change
    enQueue(commandQueue, accessoryDataGenerator(231, 1, 0)); // supposed to be 0
    enQueue(commandQueue, accessoryDataGenerator(232, 1, 1));
    enQueue(commandQueue, accessoryDataGenerator(231, 0, 0));
@@ -296,11 +296,11 @@ void loop(void)
       readTrackSensors();
       delay(loopDuration / readingsPerLoop);
    }
-   
-    if (goingToCrush == true)
-    {
-        dont();
-    }
+
+   if (goingToCrush == true)
+   {
+      dont();
+   }
    assembleDccMsg();
    digitalWrite(LED_PIN, LOW);
 }
@@ -328,7 +328,7 @@ void readTrackSensors()
       unsigned char reading = digitalRead(trackSensorAddresses[i][0]);
       if (reading != 1)
       {
-         
+
          Serial.print("Triggered sensor: ");
 
          // adjust the output to match sensor numbers instead of array index
@@ -348,7 +348,7 @@ void readTrackSensors()
 
          Serial.print(" - pin: ");
          Serial.println(trackSensorAddresses[i][0]);
-         
+
          trackSensorAddresses[i][1]++;
       }
    }
@@ -372,7 +372,7 @@ void assembleDccMsg()
    unsigned short command = getFirst(commandQueue);
    unsigned char byteOne = command >> 8;     // in 0x1234, this is 0x12
    unsigned char byteTwo = command & 0x00FF; // in 0x1234, this is 0x34
-   
+
    deQueue(commandQueue); // remove the command from the queue
 
    noInterrupts(); // make sure that only "matching" parts of the message are used in ISR

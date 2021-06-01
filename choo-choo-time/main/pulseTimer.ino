@@ -3,7 +3,7 @@
 //Returns the time load value which must be loaded into TCNT2 inside your ISR routine.
 void setupTimer2()
 {
-    Serial.println("Setting up timer");
+   Serial.println("Setting up timer");
    //Timer2 Settings: Timer Prescaler /8, mode 0
    //Timer clock = 16MHz/8 = 2MHz oder 0,5usec
    //
